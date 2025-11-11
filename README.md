@@ -12,7 +12,9 @@ git clone git@github.com:ShibaHaruki/research.git
 cd ~/research
 python3 -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
 pip install pipreqs
-pipreqs . --encoding=utf-8 --force
+pipreqs . --encoding=latin-1 --force
+
 cd shiba_LSM
 
