@@ -32,8 +32,8 @@ pip install pipreqs
 
 pipreqs . --encoding=latin-1 --force
 
-cd shiba_LSM
+pip list
 
 ls
 
-pip list
+cd shiba_LSM
