@@ -1,13 +1,11 @@
 cd "C:\Users\elast\OneDrive - 学校法人立命館\ドキュメント\研究コード"
-pip freeze > requirements.txt
-(Get-Content requirements.txt) -notmatch '^pywin32' | Set-Content requirements.txt
 git add requirements.txt
 git add .
 git commit -m "Add requirements"
 git pull --rebase origin main
 git push origin main
 
-ssh coder.sotuken.main
+ssh coder.Haru.main
 
 cd ~
 git clone git@github.com:ShibaHaruki/research.git
