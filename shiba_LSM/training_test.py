@@ -12,7 +12,7 @@ from pathlib import Path
 
 start_scope()
 
-path = Path(__file__).resolve().parent.parent
+path = str(Path(__file__).resolve().parents[1]) + "/"
 dir_name = ["Al_board", "buta_omote", "buta_ura",
             "cork", "denim", "rubber_board", "washi", "wood_board"]
 
