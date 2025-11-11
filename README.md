@@ -18,9 +18,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 pip install pipreqs
 pipreqs . --encoding=latin-1 --force
-pip list | grep -E "numpy|pandas|matplotlib|Brian2|pygame"
 pip list
 ls
 cd shiba_LSM
 
-pytho
