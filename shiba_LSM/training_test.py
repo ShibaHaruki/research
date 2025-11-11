@@ -2,6 +2,7 @@ from collections import defaultdict
 import numpy as np
 rng = np.random.default_rng(2)
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 import pandas as pd
 import glob
 from brian2 import *
@@ -10,6 +11,8 @@ prefs.codegen.target = 'numpy'
 import time  # 時間計測
 from pathlib import Path
 from tqdm import tqdm 
+
+pdf = PdfPages("results.pdf")  # 好きなファイル名にしてOK
 
 start_scope()
 
@@ -249,7 +252,7 @@ def apply_input():
 start_time = time.perf_counter()
 
 for epo in range(1):
-    for i_size in range(1):
+    for i_size in range(2):
         for i in tqdm(dir_name):
             df = pd.read_table(glob.glob(path + "tactile_data/" + i + f"/data_{int(sample_seq[i_size])}_*" )[0],header=None)
             df_np = df.to_numpy().T
@@ -386,6 +389,7 @@ if n_trials > 0:
             if pair_key in d_scalar_by_pair:
                 dist_mat[i_lab, j_lab] = np.mean(d_scalar_by_pair[pair_key])
 
+    fig = plt.figure(...)
     plt.figure(figsize=(6, 5))
     im = plt.imshow(dist_mat, origin='lower')
     plt.colorbar(im, label="time-averaged state distance")
@@ -393,6 +397,8 @@ if n_trials > 0:
     plt.yticks(range(n_labels), unique_labels)
     plt.title("Reservoir separation matrix (material vs material)")
     plt.tight_layout()
+    pdf.savefig(fig)
+    plt.close(fig)
 
     # ========= Al_board vs 他素材の距離の「時系列」 =========
     target_label = "Al_board"
@@ -408,14 +414,18 @@ if n_trials > 0:
                 mean_d_ts = np.mean(d_arr, axis=0)
                 plt.plot(TS, mean_d_ts, label=other_label)
 
+        fig = plt.figure(...)
         plt.xlabel("time (ms)")
         plt.ylabel("state distance (mean squared)")
         plt.title("Al_board vs other materials (time series)")
         plt.legend(fontsize=8)
         plt.tight_layout()
+        pdf.savefig(fig)
+        plt.close(fig)
 
 # ======= 可視化（ラスタ・ヒスト・電流・電位・w_out） =======
 # Raster (Reservoir)
+fig = plt.figure(figsize=(10, 5))
 plt.figure(figsize=(10, 5))
 plt.plot(Msp_res.t/ms, Msp_res.i, '.', markersize=1)
 plt.xlabel('Time (ms)')
@@ -423,16 +433,20 @@ plt.ylabel('Reservoir neuron index')
 total_time_ms = float(defaultclock.t/ms)
 plt.title(f'Reservoir Raster Plot (total {total_time_ms:.1f} ms)')
 plt.tight_layout()
+pdf.savefig(fig) 
 
 # Raster (Output)
+fig = plt.figure(figsize=(10, 5))
 plt.figure(figsize=(10, 5))
 plt.plot(Msp_out.t/ms, Msp_out.i, '.', markersize=1)
 plt.xlabel('Time (ms)')
 plt.ylabel('Output neuron index')
 plt.title('Output layer raster plot')
 plt.tight_layout()
+pdf.savefig(fig) 
 
 # 発火率ヒスト (Reservoir)
+fig = plt.figure(figsize=(10, 5))
 plt.figure(figsize=(10, 5))
 if len(Msp_res.t) > 0:
     weights_res = np.ones(len(Msp_res.t)) / (N_res * dt_s)  # [spikes/(neuron*s)]
@@ -441,8 +455,10 @@ if len(Msp_res.t) > 0:
 plt.xlabel('Time (ms)')
 plt.ylabel('Instantaneous firing rate (sp/s)')
 plt.tight_layout()
+pdf.savefig(fig) 
 
 # 発火率ヒスト (Output)
+fig = plt.figure(figsize=(10, 5))
 plt.figure(figsize=(10, 5))
 if len(Msp_out.t) > 0:
     weights_out = np.ones(len(Msp_out.t)) / (N_out * dt_s)
@@ -451,49 +467,62 @@ if len(Msp_out.t) > 0:
 plt.xlabel('Time (ms)')
 plt.ylabel('Instantaneous firing rate (sp/s)')
 plt.tight_layout()
+pdf.savefig(fig)
 
 # I_syn (Reservoir)
+fig = plt.figure(figsize=(10, 5))
 plt.figure(figsize=(10, 5))
 for i_plot in range(min(10, N_res)):
     plt.plot(M_Ires.t/ms, M_Ires.I_syn[i_plot], label=f'Res neuron {i_plot}')
 plt.xlabel('Time (ms)')
 plt.ylabel('Reservoir Isyn')
 plt.tight_layout()
+pdf.savefig(fig)
 
 # I_syn (Output)
+fig = plt.figure(figsize=(10, 5))
 plt.figure(figsize=(10, 5))
 for i_plot in range(min(10, N_out)):
     plt.plot(M_Iout.t/ms, M_Iout.I_syn[i_plot], label=f'Output neuron {i_plot}')
 plt.xlabel('Time (ms)')
 plt.ylabel('Output Isyn')
 plt.tight_layout()
+pdf.savefig(fig)
+
 
 # v (Reservoir)
+fig = plt.figure(figsize=(10, 5))
 plt.figure(figsize=(10, 5))
 for i_plot in range(min(10, N_res)):
     plt.plot(M_Vres.t/ms, M_Vres.v[i_plot], label=f'Res neuron {i_plot}')
 plt.xlabel('Time (ms)')
 plt.ylabel('Reservoir v')
 plt.tight_layout()
+pdf.savefig(fig)
+
 
 # v (Output)
+fig = plt.figure(figsize=(10, 5))
 plt.figure(figsize=(10, 5))
 for i_plot in range(min(10, N_out)):
     plt.plot(M_Vout.t/ms, M_Vout.v[i_plot], label=f'Output neuron {i_plot}')
 plt.xlabel('Time (ms)')
 plt.ylabel('Output v')
 plt.tight_layout()
+pdf.savefig(fig)
 
 
 
 # w_out 平均
+fig = plt.figure(figsize=(10, 5))
 wout_mean_syn = M_wout.w_out.mean(axis=0)
 plt.figure(figsize=(10, 5))
 plt.plot(M_wout.t/ms, wout_mean_syn)
 plt.xlabel("time (ms)")
 plt.ylabel("mean w_out (all synapses)")
 plt.tight_layout()
+pdf.savefig(fig)
 
 plt.show()
 
-
+pdf.close()
