@@ -8,10 +8,11 @@ from brian2 import *
 prefs.core.default_float_dtype = float64
 prefs.codegen.target = 'numpy'
 import time  # 時間計測
+from pathlib import Path
 
 start_scope()
 
-path = "/Users/elast/OneDrive - 学校法人立命館/ドキュメント/研究コード/"
+path = Path(__file__).resolve().parent.parent
 dir_name = ["Al_board", "buta_omote", "buta_ura",
             "cork", "denim", "rubber_board", "washi", "wood_board"]
 
