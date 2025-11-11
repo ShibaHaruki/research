@@ -18,3 +18,5 @@ pip install -r requirements.txt
 pip install pipreqs
 pipreqs . --encoding=latin-1 --force
 cd shiba_LSM
+ls
+pip list
