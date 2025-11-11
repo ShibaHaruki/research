@@ -172,7 +172,6 @@ dApre/dt  = -Apre/tau_r  : 1 (event-driven)
 dApost/dt = -Apost/tau_d : 1 (event-driven)
 w_out : 1
 eps_w : 1
-plastic : 1 (shared) 
 '''
 STDP_pre = '''
 Apre +=   A_B_LTP
@@ -218,7 +217,7 @@ S_out.connect(condition='i != j')
 S_out.w_out = w_out_init[S_out.i, S_out.j]
 S_out.eps_w = 1e-12
 S_out.delay = 0*ms
-S_out.plastic = 1
+
 
 # -------- monitors --------
 Msp_res = SpikeMonitor(G_res)
@@ -284,22 +283,8 @@ for epo in range(1):
             if trial_duration_ms is None:
                 trial_duration_ms = nt*dt_ms
 
-            window_ms = 100.0
-            n_window = int(window_ms / dt_ms)
-            n_window = min(n_window, nt)
-
-            # ★ 「最初の100msは STDP OFF、その後は STDP ON」版 ★
-
-            # ① 最初の100ms：STDP OFF（ウォームアップ）
-            S_out.plastic = 0
-            run((n_window * dt_ms) * ms)
-
-            # ② 残り：STDP ON（ここだけ学習）
-            S_out.plastic = 1
-            run(((nt - n_window) * dt_ms) * ms)
-
-            # trial 全体が終わったあとに t0 を進める
-            t0 += (nt * dt_ms) * ms
+            run((nt*dt_ms)*ms)
+            t0 += (nt*dt_ms)*ms
 
         print(str(i_size) + ".")
 
