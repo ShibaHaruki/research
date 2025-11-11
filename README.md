@@ -29,3 +29,6 @@ ssh coder.Haru.main
 cd ~/research
 source .venv/bin/activate
 tmux attach -t brian
+
+python training_test.py
+
