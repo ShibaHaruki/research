@@ -1,7 +1,10 @@
 cd OneDrive - 学校法人立命館\ドキュメント\研究コード
+pip freeze > requirements.txt
 git add .
-git commit -m ""
+git commit -m "Add requirements"
 git push
+
+ssh coder.sotuken.main
 
 cd ~
 git clone git@github.com:ShibaHaruki/research.git
@@ -9,6 +12,7 @@ git clone git@github.com:ShibaHaruki/research.git
 cd ~/research
 python3 -m venv .venv
 source .venv/bin/activate
-pip install brian2 numpy scipy matplotlib jupyter ipykernel
+pip install pipreqs
+pipreqs . --encoding=utf-8 --force
 cd shiba_LSM
 
