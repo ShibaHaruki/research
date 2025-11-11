@@ -1,15 +1,11 @@
 cd "C:\Users\elast\OneDrive - 学校法人立命館\ドキュメント\研究コード"
-
 git add requirements.txt
 git add .
 git commit -m "Add requirements"
 git pull --rebase origin main
 git push origin main
-
 ssh coder.Haru.main
 
-cd ~
-git clone git@github.com:ShibaHaruki/research.git
 
 
 cd ~/research
@@ -23,4 +19,13 @@ pip list
 ls
 cd shiba_LSM
 
+cd ~
+git clone git@github.com:ShibaHaruki/research.git
+
+
 exit
+
+ssh coder.Haru.main
+cd ~/research
+source .venv/bin/activate
+tmux attach -t brian
