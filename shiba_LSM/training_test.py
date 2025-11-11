@@ -298,9 +298,6 @@ for epo in range(1):
             # trial 全体が終わったあとに t0 を進める
             t0 += (nt * dt_ms) * ms
 
-            run((nt*dt_ms)*ms)
-            t0 += (nt*dt_ms)*ms
-
         print(str(i_size) + ".")
 
 # ======= 終了 =======
