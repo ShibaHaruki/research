@@ -9,6 +9,7 @@ prefs.core.default_float_dtype = float64
 prefs.codegen.target = 'numpy'
 import time  # 時間計測
 from pathlib import Path
+from tqdm import tqdm 
 
 start_scope()
 
@@ -249,7 +250,7 @@ start_time = time.perf_counter()
 
 for epo in range(1):
     for i_size in range(1):
-        for i in dir_name:
+        for i in tqdm(dir_name):
             df = pd.read_table(glob.glob(path + "tactile_data/" + i + f"/data_{int(sample_seq[i_size])}_*" )[0],header=None)
             df_np = df.to_numpy().T
             in_data_0 = df_np[:3, 3000:8000]

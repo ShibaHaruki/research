@@ -24,3 +24,4 @@ pip list
 ls
 cd shiba_LSM
 
+exit
