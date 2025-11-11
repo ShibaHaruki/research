@@ -16,7 +16,12 @@ path = Path(__file__).resolve().parent.parent
 dir_name = ["Al_board", "buta_omote", "buta_ura",
             "cork", "denim", "rubber_board", "washi", "wood_board"]
 
-sample_seq = np.load("sample_seq.npy")
+sample_seq = np.zeros(324)
+for i in range(324):
+	sample_seq[i] = int(i+1)
+rng.shuffle(sample_seq)
+np.save("sample_seq.npy", sample_seq)
+
 
 # -------- tactile input filters --------
 def calc_meissner(data, t, dt):
