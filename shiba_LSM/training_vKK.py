@@ -315,7 +315,7 @@ for epo in range(1):
 
 	for i_size in range(1):
 
-		for i in tqdm(dir_name):
+		for i in dir_name:
 			df = pd.read_table(glob.glob(path + "tactile_data/" + i + f"/data_{int(sample_seq[i_size])}_*")[0],header=None)
 			df_np = df.to_numpy().T # 行列 3*N DataFrameをNumPy配列に変換し、転置
 			in_data_0 =  df_np[:3, 3000:8000] #　行列 3*5000
