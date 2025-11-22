@@ -9,10 +9,12 @@ import glob
 from scipy.signal import savgol_filter
 from brian2 import *
 prefs.codegen.target = 'numpy'
+from pathlib import Path
+from tqdm import tqdm 
 
 start_scope()
 
-path = "/Users/elast/OneDrive - 学校法人立命館/ドキュメント/研究コード/"
+path = str(Path(__file__).resolve().parents[1]) + "/"
 dir_name = ["Al_board", "buta_omote", "buta_ura", "cork", "denim", "rubber_board", "washi", "wood_board"]
 
 sample_seq = np.load("sample_seq.npy")
@@ -130,7 +132,7 @@ H_post += (w_res / (tau_r * tau_d)) / Hz
 double_exp_out = '''
 dR/dt = -R / tau_d + H : 1  
 dH/dt = -H / tau_r : Hz
-I_syn =  R + 35 : 1 
+I_syn =  R : 1 
 '''
 on_pre_out = '''
 H_post += (w_out / (tau_r * tau_d)) / Hz
@@ -140,23 +142,24 @@ eqs_res = double_exp_res + LIF
 eqs_out = double_exp_out + LIF
 
 
+# -------- groups --------
 G_res = NeuronGroup(
     N_res, eqs_res,
     threshold='v >= v_thr',
-    reset='''v = v_peak; spiked = 1''',
-    refractory= 'timestep(t - lastspike, dt) <= timestep(t_ref, dt)',
+    reset='v = v_reset',
+    refractory='timestep(t - lastspike, dt) <= timestep(t_ref, dt)',
     method='exact'
 )
+G_res.tau_m = tau_m_res*ms
+G_res.t_ref = t_ref_res*ms
+
 G_out = NeuronGroup(
     N_out, eqs_out,
     threshold='v >= v_thr',
-    reset='''v = v_peak; spiked = 1''',
-    refractory= 'timestep(t - lastspike, dt) <= timestep(t_ref, dt)',
+    reset='v = v_reset',
+    refractory='timestep(t - lastspike, dt) <= timestep(t_ref, dt)',
     method='exact'
 )
-
-G_res.tau_m = tau_m_res*ms
-G_res.t_ref = t_ref_res*ms
 G_out.tau_m = tau_m_out*ms
 G_out.t_ref = t_ref_out*ms
 
@@ -175,8 +178,6 @@ Msp_out = SpikeMonitor(G_out)
 n_bins = 500  
 sout_rec = np.zeros((len(dir_name), n_sample, N_out, n_bins))
 
-prev_spiked_res = np.zeros(N_res)
-prev_spiked_out = np.zeros(N_out)
 
 @network_operation(dt=dt_ms*ms)
 def apply_input():
@@ -187,20 +188,6 @@ def apply_input():
     I_input = input_current[:, idx] @ w_in
     G_res.I_exc = I_input 
     G_res.I_inh = 0
-
-    fired_res_prev = np.where(prev_spiked_res == 1)[0]
-    fired_out_prev = np.where(prev_spiked_out == 1)[0]
-    if len(fired_res_prev) > 0:
-        G_res.v[fired_res_prev] = v_reset
-        G_res.spiked[fired_res_prev] = 0
-        prev_spiked_res[fired_res_prev] = 0
-    if len(fired_out_prev) > 0:
-        G_out.v[fired_out_prev] = v_reset
-        G_out.spiked[fired_out_prev] = 0
-        prev_spiked_out[fired_out_prev] = 0
-
-    prev_spiked_res = np.array(G_res.spiked)
-    prev_spiked_out = np.array(G_out.spiked)
 
 Msp_res = SpikeMonitor(G_res)               
 Mr_out = SpikeMonitor(G_out)

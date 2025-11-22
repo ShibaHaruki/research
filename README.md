@@ -14,7 +14,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install pipreqs
-pipreqs . --encoding=latin-1 --force
+piprpyeqs . --encoding=latin-1 --force
 pip list
 ls
 cd shiba_LSM

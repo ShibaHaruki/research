@@ -356,7 +356,8 @@ for i in range(1):
 			I_syn = synapse_res(sres)
 			I_syn = G  * I_syn
 
-			sout = neuron_out(I_syn_out + BIAS, 0) 
+			sout = neuron_out(I_syn_out + BIAS, 0)
+			#10msごとにsoutを足し合わせる
 			if(t%10 == 9):
 				sout_tmp = sout_tmp + sout
 				#print(sout_tmp.shape)
