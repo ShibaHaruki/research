@@ -111,7 +111,7 @@ defaultclock.dt = dt_ms * ms
 t0 = 0*ms
 
 #weight
-w_in = np.random.randn(N_in, N_res) * (np.random.rand(N_in, N_res) < p_in) / (np.sqrt(N_in)*p_in) 
+w_in = np.random.randn(N_in, N_res) * (np.random.rand(N_in, N_res) < p_in) / (np.sqrt(N_in*p_in) )
 
 variance = (N_res * p_res**2)**-1
 w_res_init = np.random.randn(N_res, N_res) * (np.random.rand(N_res, N_res) < p_res) * np.sqrt(variance)
@@ -121,7 +121,7 @@ for k in range(N_res):
         w_res_init[QS, k] -= np.mean(w_res_init[QS, k])
    
 mask_out = (np.random.rand(N_res, N_out) < p_out).astype(float)
-W_out_init = np.random.randn(N_res, N_out) * mask_out / (np.sqrt(N_out)*p_out) * G
+W_out_init = np.random.randn(N_res, N_out) * mask_out / (np.sqrt(N_out*p_out)) * G
 
 
 LIF = '''

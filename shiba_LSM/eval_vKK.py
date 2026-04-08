@@ -14,7 +14,7 @@ n_sozai = len(dir_name)
 T_n = int(sys.argv[1])
 loop_size = 10
 
-infname = 'sout_rec.npy'
+infname = 'T_STDP_1_sout_rec.npy'
 sout_rec_org = np.load(infname)
 
 n_sozai = sout_rec_org.shape[0]
