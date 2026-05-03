@@ -1,0 +1,13 @@
+{
+  "A_plus": 0.0007,
+  "A_minus": 0.0006,
+  "tau_plus": 11.7,
+  "tau_minus": 14.0,
+  "tau_pre_M": 13.0,
+  "tau_post_M": 16.0,
+  "A_pre_M": 5e-05,
+  "A_post_M": 6e-05,
+  "wmin": -1.0,
+  "wmax": 1.0,
+  "eps_w": 1e-12
+}

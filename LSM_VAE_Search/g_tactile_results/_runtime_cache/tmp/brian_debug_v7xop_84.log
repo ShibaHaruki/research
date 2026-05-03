@@ -1,0 +1,59 @@
+2026-04-29 23:43:45,732 DEBUG      brian2: Logging to file: C:\Users\haru4\OneDrive - 学校法人立命館\ドキュメント\研究\研究コード\LSM_VAE_Search\g_tactile_results\_runtime_cache\tmp\brian_debug_v7xop_84.log, copy of main script saved as: C:\Users\haru4\OneDrive - 学校法人立命館\ドキュメント\研究\研究コード\LSM_VAE_Search\g_tactile_results\_runtime_cache\tmp\brian_script_ojpkgwtk.py
+2026-04-29 23:43:45,732 DEBUG      brian2: Python interpreter: C:\Users\haru4\AppData\Local\Python\pythoncore-3.12-64\python.exe
+2026-04-29 23:43:45,732 DEBUG      brian2: Platform: win32
+2026-04-29 23:43:45,733 DEBUG      brian2: brian version is: 2.10.1
+2026-04-29 23:43:45,733 DEBUG      brian2: numpy version is: 2.4.4
+2026-04-29 23:43:45,733 DEBUG      brian2: scipy version is: 1.17.1
+2026-04-29 23:43:45,733 DEBUG      brian2: sympy version is: 1.14.0
+2026-04-29 23:43:45,733 DEBUG      brian2: python version is: 3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]
+2026-04-29 23:43:45,733 DEBUG      brian2: Cache size for target 'cython': 1 MB
+2026-04-29 23:43:45,926 WARNING    brian2.groups.group.Group.resolve.resolution_conflict: 'N_post' is an internal variable of group 'S_merkel_liq1', but also exists in the run namespace with the value 800. The internal variable will be used.
+2026-04-29 23:43:45,926 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_in' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.2) if (((i//2==0) and (i%2==0))) and (typ_post==1)'
+2026-04-29 23:43:45,972 WARNING    brian2.groups.group.Group.resolve.resolution_conflict: 'N_post' is an internal variable of group 'S_merkel_liq1', but also exists in the run namespace with the value 200. The internal variable will be used.
+2026-04-29 23:43:45,972 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_in' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.2) if (((i//2==0) and (i%2==0))) and (typ_post==-1)'
+2026-04-29 23:43:45,996 WARNING    brian2.groups.group.Group.resolve.resolution_conflict: 'N_post' is an internal variable of group 'S_meissner_liq1', but also exists in the run namespace with the value 800. The internal variable will be used.
+2026-04-29 23:43:45,996 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_in' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.2) if (((i//2==0) and (i%2==1))) and (typ_post==1)'
+2026-04-29 23:43:46,004 WARNING    brian2.groups.group.Group.resolve.resolution_conflict: 'N_post' is an internal variable of group 'S_meissner_liq1', but also exists in the run namespace with the value 200. The internal variable will be used.
+2026-04-29 23:43:46,004 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_in' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.2) if (((i//2==0) and (i%2==1))) and (typ_post==-1)'
+2026-04-29 23:43:46,045 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_liq1' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.1) if (i!=_k) and (typ_pre==1)  and (typ_post==1)'
+2026-04-29 23:43:46,089 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_liq1' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.1) if (i!=_k) and (typ_pre==1)  and (typ_post==-1)'
+2026-04-29 23:43:46,154 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_liq1' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.1) if (i!=_k) and (typ_pre==-1) and (typ_post==1)'
+2026-04-29 23:43:46,226 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_liq1' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.0) if (i!=_k) and (typ_pre==-1) and (typ_post==-1)'
+2026-04-29 23:43:49,221 DEBUG      brian2.core.network.before_run: Preparing network 'network' with 17 objects: G_in, G_liq1, S_liq_intra_E_L1, S_liq_intra_I_L1, S_meissner_liq1, S_merkel_liq1, V_liq_L1, V_liq_internal_L1, S_meissner_liq1_summed_variable_I_meissner_post, S_merkel_liq1_summed_variable_I_merkel_post, G_in_stateupdater, G_liq1_stateupdater, G_liq1_spike_thresholder, M_liq_debug_L1, S_liq_intra_E_L1_pre, S_liq_intra_I_L1_pre, G_liq1_spike_resetter
+2026-04-29 23:43:49,266 DEBUG      brian2.stateupdaters.base.method_choice: Group G_liq1: using numerical integration method euler (took 0.03s)
+2026-04-29 23:43:49,333 DEBUG      brian2.core.network.before_run: Network 'network' uses 3 clocks: V_liq_L1_clock, V_liq_internal_L1_clock, defaultclock
+2026-04-29 23:43:49,335 DEBUG      brian2.core.network.run: Simulating network 'network' from time 0. s to 0.5 s.
+2026-04-29 23:43:50,621 DEBUG      brian2.core.network.run: Finished simulating network 'network' (took 1.29s)
+2026-04-29 23:43:52,516 DEBUG      brian2.core.network.before_run: Preparing network 'network' with 17 objects: G_in, G_liq1, S_liq_intra_E_L1, S_liq_intra_I_L1, S_meissner_liq1, S_merkel_liq1, V_liq_L1, V_liq_internal_L1, S_meissner_liq1_summed_variable_I_meissner_post, S_merkel_liq1_summed_variable_I_merkel_post, G_in_stateupdater, G_liq1_stateupdater, G_liq1_spike_thresholder, M_liq_debug_L1, S_liq_intra_E_L1_pre, S_liq_intra_I_L1_pre, G_liq1_spike_resetter
+2026-04-29 23:43:52,554 DEBUG      brian2.core.network.before_run: Network 'network' uses 3 clocks: V_liq_L1_clock, V_liq_internal_L1_clock, defaultclock
+2026-04-29 23:43:52,554 DEBUG      brian2.core.network.run: Simulating network 'network' from time 0.5 s to 1. s.
+2026-04-29 23:43:53,955 DEBUG      brian2.core.network.run: Finished simulating network 'network' (took 1.40s)
+2026-04-29 23:43:55,288 DEBUG      brian2.core.network.before_run: Preparing network 'network' with 17 objects: G_in, G_liq1, S_liq_intra_E_L1, S_liq_intra_I_L1, S_meissner_liq1, S_merkel_liq1, V_liq_L1, V_liq_internal_L1, S_meissner_liq1_summed_variable_I_meissner_post, S_merkel_liq1_summed_variable_I_merkel_post, G_in_stateupdater, G_liq1_stateupdater, G_liq1_spike_thresholder, M_liq_debug_L1, S_liq_intra_E_L1_pre, S_liq_intra_I_L1_pre, G_liq1_spike_resetter
+2026-04-29 23:43:55,332 DEBUG      brian2.core.network.before_run: Network 'network' uses 3 clocks: V_liq_L1_clock, V_liq_internal_L1_clock, defaultclock
+2026-04-29 23:43:55,334 DEBUG      brian2.core.network.run: Simulating network 'network' from time 1. s to 1.5 s.
+2026-04-29 23:43:56,756 DEBUG      brian2.core.network.run: Finished simulating network 'network' (took 1.42s)
+2026-04-29 23:43:58,010 DEBUG      brian2.core.network.before_run: Preparing network 'network' with 17 objects: G_in, G_liq1, S_liq_intra_E_L1, S_liq_intra_I_L1, S_meissner_liq1, S_merkel_liq1, V_liq_L1, V_liq_internal_L1, S_meissner_liq1_summed_variable_I_meissner_post, S_merkel_liq1_summed_variable_I_merkel_post, G_in_stateupdater, G_liq1_stateupdater, G_liq1_spike_thresholder, M_liq_debug_L1, S_liq_intra_E_L1_pre, S_liq_intra_I_L1_pre, G_liq1_spike_resetter
+2026-04-29 23:43:58,055 DEBUG      brian2.core.network.before_run: Network 'network' uses 3 clocks: V_liq_L1_clock, V_liq_internal_L1_clock, defaultclock
+2026-04-29 23:43:58,055 DEBUG      brian2.core.network.run: Simulating network 'network' from time 1.5 s to 2. s.
+2026-04-29 23:43:59,495 DEBUG      brian2.core.network.run: Finished simulating network 'network' (took 1.44s)
+2026-04-29 23:44:00,703 DEBUG      brian2.core.network.before_run: Preparing network 'network' with 17 objects: G_in, G_liq1, S_liq_intra_E_L1, S_liq_intra_I_L1, S_meissner_liq1, S_merkel_liq1, V_liq_L1, V_liq_internal_L1, S_meissner_liq1_summed_variable_I_meissner_post, S_merkel_liq1_summed_variable_I_merkel_post, G_in_stateupdater, G_liq1_stateupdater, G_liq1_spike_thresholder, M_liq_debug_L1, S_liq_intra_E_L1_pre, S_liq_intra_I_L1_pre, G_liq1_spike_resetter
+2026-04-29 23:44:00,736 DEBUG      brian2.core.network.before_run: Network 'network' uses 3 clocks: V_liq_L1_clock, V_liq_internal_L1_clock, defaultclock
+2026-04-29 23:44:00,744 DEBUG      brian2.core.network.run: Simulating network 'network' from time 2. s to 2.5 s.
+2026-04-29 23:44:02,062 DEBUG      brian2.core.network.run: Finished simulating network 'network' (took 1.32s)
+2026-04-29 23:44:03,334 DEBUG      brian2.core.network.before_run: Preparing network 'network' with 17 objects: G_in, G_liq1, S_liq_intra_E_L1, S_liq_intra_I_L1, S_meissner_liq1, S_merkel_liq1, V_liq_L1, V_liq_internal_L1, S_meissner_liq1_summed_variable_I_meissner_post, S_merkel_liq1_summed_variable_I_merkel_post, G_in_stateupdater, G_liq1_stateupdater, G_liq1_spike_thresholder, M_liq_debug_L1, S_liq_intra_E_L1_pre, S_liq_intra_I_L1_pre, G_liq1_spike_resetter
+2026-04-29 23:44:03,379 DEBUG      brian2.core.network.before_run: Network 'network' uses 3 clocks: V_liq_L1_clock, V_liq_internal_L1_clock, defaultclock
+2026-04-29 23:44:03,380 DEBUG      brian2.core.network.run: Simulating network 'network' from time 2.5 s to 3. s.
+2026-04-29 23:44:04,678 DEBUG      brian2.core.network.run: Finished simulating network 'network' (took 1.30s)
+2026-04-29 23:44:05,934 DEBUG      brian2.core.network.before_run: Preparing network 'network' with 17 objects: G_in, G_liq1, S_liq_intra_E_L1, S_liq_intra_I_L1, S_meissner_liq1, S_merkel_liq1, V_liq_L1, V_liq_internal_L1, S_meissner_liq1_summed_variable_I_meissner_post, S_merkel_liq1_summed_variable_I_merkel_post, G_in_stateupdater, G_liq1_stateupdater, G_liq1_spike_thresholder, M_liq_debug_L1, S_liq_intra_E_L1_pre, S_liq_intra_I_L1_pre, G_liq1_spike_resetter
+2026-04-29 23:44:05,970 DEBUG      brian2.core.network.before_run: Network 'network' uses 3 clocks: V_liq_L1_clock, V_liq_internal_L1_clock, defaultclock
+2026-04-29 23:44:05,972 DEBUG      brian2.core.network.run: Simulating network 'network' from time 3. s to 3.5 s.
+2026-04-29 23:44:07,362 DEBUG      brian2.core.network.run: Finished simulating network 'network' (took 1.39s)
+2026-04-29 23:44:08,851 DEBUG      brian2.core.network.before_run: Preparing network 'network' with 17 objects: G_in, G_liq1, S_liq_intra_E_L1, S_liq_intra_I_L1, S_meissner_liq1, S_merkel_liq1, V_liq_L1, V_liq_internal_L1, S_meissner_liq1_summed_variable_I_meissner_post, S_merkel_liq1_summed_variable_I_merkel_post, G_in_stateupdater, G_liq1_stateupdater, G_liq1_spike_thresholder, M_liq_debug_L1, S_liq_intra_E_L1_pre, S_liq_intra_I_L1_pre, G_liq1_spike_resetter
+2026-04-29 23:44:08,902 DEBUG      brian2.core.network.before_run: Network 'network' uses 3 clocks: V_liq_L1_clock, V_liq_internal_L1_clock, defaultclock
+2026-04-29 23:44:08,902 DEBUG      brian2.core.network.run: Simulating network 'network' from time 3.5 s to 4. s.
+2026-04-29 23:44:10,426 DEBUG      brian2.core.network.run: Finished simulating network 'network' (took 1.52s)
+2026-04-29 23:44:13,208 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_in' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.2) if (((i//2==0) and (i%2==0))) and (typ_post==1)'
+2026-04-29 23:44:13,234 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_in' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.2) if (((i//2==0) and (i%2==0))) and (typ_post==-1)'
+2026-04-29 23:44:13,264 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_in' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.2) if (((i//2==0) and (i%2==1))) and (typ_post==1)'
+2026-04-29 23:44:13,289 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_in' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.2) if (((i//2==0) and (i%2==1))) and (typ_post==-1)'
+2026-04-29 23:44:13,317 DEBUG      brian2.synapses.synapses: Creating synapses from group 'G_liq1' to group 'G_liq1', using generator '_k for _k in sample(N_post, p=0.1) if (i!=_k) and (typ_pre==1)  and (typ_post==1)'

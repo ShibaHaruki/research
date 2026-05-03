@@ -1,14 +1,20 @@
+"""シナプスモデルごとの時定数などの固定設定。"""
+
 # FIXED/cfg_neuron_models.py
 
-NEURON_PRESETS = {
-    "LIF_default": {
-        "neuron_model": "LIF",
-        "tau_exc": 10,
-        "tau_inh": 2,
-        "ref_exc": 2,
-        "ref_inh": 1,
-        "bias": 0.0,
-        "v_thr": -40,
-        "v_reset": -65,
+CFG_SYNAPSE_MODELS = {
+    
+    "double_exp": {
+        "tau_r": 2.0,
+        "tau_d": 30.0,
     },
+
+    "double_exp_stp": {
+        "tau_r": 2.0,
+        "tau_d": 30.0,
+        "tau_stp_rec": 800.0,
+        "tau_stp_facil": 50.0,
+        "U_stp": 0.2,
+    },
+
 }

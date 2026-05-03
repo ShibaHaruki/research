@@ -1,3 +1,5 @@
+"""学習則パラメータを探索するときの候補値リスト。"""
+
 # SPACE/cfg_learning_rule_models.py
 # 学習則 preset ごとの探索空間（辞書のみ / 値は list）
 
@@ -42,5 +44,16 @@ LEARNING_RULE_SPACE = {
         "A_post":    [1e-5, 5e-5, 1e-4],
         "wmin":      [0.0],
         "wmax":      [1.0],
+    },
+
+    "BCPNN_default": {
+        "tau_z":          [2.0, 5.0, 10.0],
+        "tau_p":          [500.0, 1000.0, 2000.0],
+        "z_inc":          [1.0],
+        "bcpnn_eps":      [1e-6],
+        "bcpnn_gain":     [0.01, 0.05, 0.1],
+        "bcpnn_w_offset": [0.0],
+        "wmin":           [0.0],
+        "wmax":           [1.0],
     },
 }

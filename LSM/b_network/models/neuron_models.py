@@ -1,14 +1,24 @@
+"""LIF などのニューロンモデル定義を登録する設定。"""
+
 # models/neuron_models.py
-import numpy as np
-from brian2 import ms
+from .model_utils import register_model
+
+
+REQUIRED_NEURON_KEYS = (
+    "eqs",
+    "threshold",
+    "reset",
+    "refractory",
+    "method",
+    "set_shared",
+)
+
 
 COMMON_NEURON_MODEL_PARAMETERS = """
 I_merkel   : 1
 I_meissner : 1
-I_in = I_merkel + I_meissner : 1
-
-I_inh : 1
-I_exc : 1
+I_pacinian : 1
+I_in = I_merkel + I_meissner + I_pacinian : 1
 
 tau_m : second
 t_ref : second
@@ -23,15 +33,44 @@ z : 1 (constant)
 typ : integer (constant)
 """
 
-NEURON_MODELS = {
-    "LIF": dict(
+
+def neuron_model(
+    *,
+    eqs: str,
+    threshold: str,
+    reset: str,
+    refractory: str,
+    method: str = "euler",
+    namespace: dict | None = None,
+    set_shared=None,
+) -> dict:
+    return {
+        "eqs": eqs,
+        "threshold": threshold,
+        "reset": reset,
+        "refractory": refractory,
+        "method": method,
+        "namespace": namespace or {},
+        "set_shared": set_shared or (lambda g: None),
+    }
+
+
+NEURON_MODELS: dict[str, dict] = {}
+
+LIF_MODEL = register_model(
+    NEURON_MODELS,
+    "LIF",
+    neuron_model(
         eqs=COMMON_NEURON_MODEL_PARAMETERS + """
-        dv/dt = (-v + bias + I_in - I_inh + I_exc) / tau_m : 1 (unless refractory)
-        """,
+dv/dt = (-v + bias + I_in - I_inh + I_exc) / tau_m : 1 (unless refractory)
+""",
         threshold="v >= v_thr",
         reset="v = v_reset",
         refractory="timestep(t - lastspike, dt) <= timestep(t_ref, dt)",
-        method="euler",
-        set_shared=lambda g: None,
     ),
-}
+    REQUIRED_NEURON_KEYS,
+)
+
+
+# Compatibility alias for older imports.
+NEURON_MODEL_PARAMETERS = COMMON_NEURON_MODEL_PARAMETERS
