@@ -44,14 +44,6 @@ CFG_NETWORK = {
                 },
             },
         },
-        (0, "pacinian"): {
-            "layers": {
-                0: {
-                    "p": {"E": 0.05, "I": 0.05},
-                    "scale": {"E": 0.1, "I": 0.1},
-                },
-            },
-        },
     },
 
     # Optional background Poisson spike input.

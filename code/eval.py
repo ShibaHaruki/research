@@ -12,10 +12,8 @@ from pathlib import Path
 
 # 例：学習則ホワイトリスト（完全一致 or prefix一致）
 RULE_WHITELIST = [
-    "STDP_1",
-    "SRDP_1",
-    "off_1",
-    "T_STDP_1",
+
+    "liquid",
 ]
 
 # rep 範囲
@@ -29,6 +27,8 @@ N_FOLDS = 10
 Tn_list = [25]
 if len(sys.argv) >= 2:
     Tn_list = [int(sys.argv[1])]
+
+DATASET_FILTERS = sys.argv[2:]
 
 BASE_SEED = 1
 
@@ -91,6 +91,8 @@ def discover_sout_files(data_dir: Path):
     return mapping
 
 def should_run(dataset_name: str) -> bool:
+    if DATASET_FILTERS and dataset_name not in DATASET_FILTERS:
+        return False
     
     if not RULE_WHITELIST:
         return True
@@ -374,5 +376,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

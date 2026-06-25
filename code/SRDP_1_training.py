@@ -74,21 +74,21 @@ def save_weights(rep: int,
     """
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    np.save(out_dir / f"{OUT_PREFIX}_w_in_rep{rep}.npy", w_in)
-    np.save(out_dir / f"{OUT_PREFIX}_w_res_rep{rep}.npy", w_res)
+    np.save(out_dir / f"{OUT_PREFIX}_w_in_rep{rep}_g{0.13}.npy", w_in)
+    np.save(out_dir / f"{OUT_PREFIX}_w_res_rep{rep}_g{0.13}.npy", w_res)
 
     w_out_dense = np.zeros((N_res, N_out), dtype=float)
     ii = np.array(S_out.i[:], dtype=int)
     jj = np.array(S_out.j[:], dtype=int)
     ww = np.array(S_out.w_out[:], dtype=float)
     w_out_dense[ii, jj] = ww
-    np.save(out_dir / f"{OUT_PREFIX}_w_out_rep{rep}.npy", w_out_dense)
+    np.save(out_dir / f"{OUT_PREFIX}_w_out_rep{rep}_g{0.13}.npy", w_out_dense)
 
 
 # =========================
 # Repeat settings
 # =========================
-N_REPEAT = 10
+N_REPEAT = 1
 BASE_SEED = 2
 N_EPOCH = 3
 N_TRAIN = 100
@@ -142,6 +142,7 @@ def run_once(rep: int):
     wmax = 1.0
 
     BIAS = -65
+    G_out = 0.13
     G = 0.25
 
     # neuron params
@@ -164,7 +165,7 @@ def run_once(rep: int):
             w_res_init[QS, k] -= np.mean(w_res_init[QS, k])
 
     mask_out = (rng.random((N_res, N_out)) < p_out).astype(float)
-    w_out_init = rng.standard_normal((N_res, N_out)) * mask_out / np.sqrt(N_out * p_out) * G
+    w_out_init = rng.standard_normal((N_res, N_out)) * mask_out / np.sqrt(N_out * p_out) * G_out
 
     # models
     LIF = """

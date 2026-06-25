@@ -344,7 +344,6 @@ def reset_dynamic_state(objects: dict, net_cfg: dict):
         group.v = group.v #net_cfg["v_reset"]
         group.I_merkel = 0
         group.I_meissner = 0
-        group.I_pacinian = 0
         group.I_exc = group.I_exc
         group.I_inh = group.I_inh
         group.H_exc = group.H_exc

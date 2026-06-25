@@ -1,0 +1,21 @@
+.DS_Store
+Thumbs.db
+
+# Python cache and local runtime state
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+
+# Local result outputs
+g_tactile_results/**
+!g_tactile_results/**/
+!g_tactile_results/**/debug/
+!g_tactile_results/**/debug/**/
+!g_tactile_results/**/debug/**/used_parameters.txt
+
+# Local editor settings
+.vscode/
+
+# Large/generated data kept outside source control
+tactile_data/

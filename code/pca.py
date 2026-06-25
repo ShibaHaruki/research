@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+import sys
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -36,6 +37,7 @@ RULES = [
 REP = 3
 T_n = 25
 SAMPLE_FOR_CLS = 100
+TARGET_DATASETS = sys.argv[1:]
 
 try:
     SCRIPT_DIR = Path(__file__).resolve().parent
@@ -196,9 +198,12 @@ def main():
     print("save dir :", OUT_DIR)
     print("=" * 80)
 
-    for rule_name in RULES:
+    rules = TARGET_DATASETS if TARGET_DATASETS else RULES
+    rep = 1 if TARGET_DATASETS else REP
+
+    for rule_name in rules:
         print(f"processing: {rule_name}")
-        run_one_rule(rule_name, REP)
+        run_one_rule(rule_name, rep)
 
     print("done")
 

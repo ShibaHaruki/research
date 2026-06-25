@@ -1,0 +1,53 @@
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Brian2/Cython/generated runtime artifacts
+brian2_cython_cache/
+**/brian2_cython_cache/
+**/_runtime_cache/
+*.pyd
+*.obj
+*.lib
+*.exp
+*.cpp
+*.pyx
+*.log
+
+# Large/generated experiment arrays
+*.npy
+*.npz
+
+# Large/local data and experiment output directories
+tactile_data/
+**/g_tactile_results/
+code/SRDP_1_param_search_parallel/search_*/
+code/SRDP_1_param_search_parallel/eval_results_10fold/search_*/
+code/results_10fold/
+code/decoder_compare_results/
+code/liquid_pca_results/
+code/liquid_sensor_pca_results/
+code/off_1_gout_rate_match_plots/
+code/off_1_gout_rate_match_uniform_plots/
+code/SRDP_1_g0.13_fixed_output_rate/
+
+# Keep summary tables and reports explicitly addable when needed.
+!code/SRDP_1_param_search_parallel/eval_results_10fold/summary_all_searches.csv
+!code/SRDP_1_param_search_parallel/eval_results_10fold/summary_all_searches.xlsx
+!code/results_10fold/summary_all_datasets.xlsx
+!*.pdf

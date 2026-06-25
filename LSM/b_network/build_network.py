@@ -348,7 +348,6 @@ def _init_group_state(
 
     group.I_merkel = 0
     group.I_meissner = 0
-    group.I_pacinian = 0
     group.I_exc = 0
     group.I_inh = 0
     group.H_exc = 0
