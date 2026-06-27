@@ -14,6 +14,14 @@ g_tactile_results/**
 !g_tactile_results/**/debug/**/
 !g_tactile_results/**/debug/**/used_parameters.txt
 
+# Runtime cache must stay ignored
+g_tactile_results/**/_runtime_cache/
+g_tactile_results/**/_runtime_cache/**
+g_tactile_results/**/INetCache/
+g_tactile_results/**/INetCache/**
+g_tactile_results/**/Content.IE5/
+g_tactile_results/**/Content.IE5/**
+
 # Local editor settings
 .vscode/
 

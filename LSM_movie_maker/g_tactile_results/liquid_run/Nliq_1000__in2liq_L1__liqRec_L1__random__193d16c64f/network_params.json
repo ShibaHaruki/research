@@ -1,0 +1,79 @@
+{
+  "network_dir": "Nliq_1000__in2liq_L1__liqRec_L1__random__193d16c64f",
+  "include_output": false,
+  "topology": {
+    "input_to_liquid": {
+      "target_liquid_layers": [
+        1
+      ],
+      "label": "in2liq_L1"
+    },
+    "liquid_recurrent": {
+      "layers": [
+        1
+      ],
+      "connection": "random",
+      "label": "liqRec_L1"
+    }
+  },
+  "network": {
+    "N_liq": [
+      1000
+    ],
+    "r_inh_liq": 0.2,
+    "IN_ROUTE": {
+      "(0, 'merkel')": {
+        "layers": {
+          "0": {
+            "p": {
+              "E": 0.05,
+              "I": 0.05
+            },
+            "scale": {
+              "E": 0.05,
+              "I": 0.05
+            }
+          }
+        }
+      },
+      "(0, 'meissner')": {
+        "layers": {
+          "0": {
+            "p": {
+              "E": 0.05,
+              "I": 0.05
+            },
+            "scale": {
+              "E": 0.2,
+              "I": 0.2
+            }
+          }
+        }
+      }
+    },
+    "USE_INPUT_FILTERS": [
+      "merkel",
+      "meissner"
+    ],
+    "NUM_CHANNEL": 1,
+    "liq_intra_connection": "random",
+    "p_liq_intra_pairs": {
+      "EE": 0.02,
+      "EI": 0.02,
+      "IE": 0.02,
+      "II": 0.0
+    },
+    "liq_intra_gain_pairs": {
+      "EE": 0.1,
+      "EI": 0.1,
+      "IE": 0.1,
+      "II": 0.0
+    }
+  },
+  "input_filter_map": {
+    "0": [
+      "merkel",
+      "meissner"
+    ]
+  }
+}

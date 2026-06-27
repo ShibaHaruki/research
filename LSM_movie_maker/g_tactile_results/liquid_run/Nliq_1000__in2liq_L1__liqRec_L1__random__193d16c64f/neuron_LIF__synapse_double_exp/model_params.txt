@@ -1,0 +1,24 @@
+Model Parameters
+================
+
+{
+  "model_dir": "neuron_LIF__synapse_double_exp",
+  "include_learning": false,
+  "models": {
+    "NEURON_MODEL": "LIF",
+    "SYNAPSE_MODEL": "double_exp"
+  },
+  "neuron_model_params": {
+    "tau_exc": 10,
+    "tau_inh": 10,
+    "ref_exc": 2,
+    "ref_inh": 2,
+    "bias": -65.0,
+    "v_thr": -40,
+    "v_reset": -65
+  },
+  "synapse_model_params": {
+    "tau_r": 2.0,
+    "tau_d": 30.0
+  }
+}

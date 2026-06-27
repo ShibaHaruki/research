@@ -17,7 +17,7 @@ CFG_NETWORK = {
     # 1) neuron groups
     # Layer counts are inferred from len(N_liq).
     "N_liq": [1000],
-    "r_inh_liq": 0.2,
+    "r_inh_liq": 0.5,
 
     # 2) input -> liquid
     # Use IN_ROUTE when you want per-filter input settings.
@@ -43,7 +43,7 @@ CFG_NETWORK = {
         (0, "RI"): {
             "layers": {
                 0: {
-                    "p": {"E": 0.05, "I": 0.05},
+                    "p": {"E": 0.00, "I": 0.00},
                     "scale": {"E": 0.1, "I": 0.1},
                 },
             },
@@ -51,7 +51,7 @@ CFG_NETWORK = {
         (0, "SI"): {
             "layers": {
                 0: {
-                    "p": {"E": 0.05, "I": 0.05},
+                    "p": {"E": 0.2, "I": 0.2},
                     "scale": {"E": 0.1, "I": 0.1},
                 },
             },
@@ -59,7 +59,7 @@ CFG_NETWORK = {
         (0, "USI"): {
             "layers": {
                 0: {
-                    "p": {"E": 0.05, "I": 0.05},
+                    "p": {"E": 0.2, "I": 0.2},
                     "scale": {"E": 0.1, "I": 0.1},
                 },
             },
@@ -83,7 +83,7 @@ CFG_NETWORK = {
         (1, "RI"): {
             "layers": {
                 0: {
-                    "p": {"E": 0.05, "I": 0.05},
+                    "p": {"E": 0.00, "I": 0.00},
                     "scale": {"E": 0.1, "I": 0.1},
                 },
             },
@@ -91,7 +91,7 @@ CFG_NETWORK = {
         (1, "SI"): {
             "layers": {
                 0: {
-                    "p": {"E": 0.05, "I": 0.05},
+                    "p": {"E": 0.2, "I": 0.2},
                     "scale": {"E": 0.1, "I": 0.1},
                 },
             },
@@ -99,7 +99,7 @@ CFG_NETWORK = {
         (1, "USI"): {
             "layers": {
                 0: {
-                    "p": {"E": 0.05, "I": 0.05},
+                    "p": {"E": 0.2, "I": 0.2},
                     "scale": {"E": 0.1, "I": 0.1},
                 },
             },
@@ -123,7 +123,7 @@ CFG_NETWORK = {
         (2, "RI"): {
             "layers": {
                 0: {
-                    "p": {"E": 0.05, "I": 0.05},
+                    "p": {"E": 0.00, "I": 0.00},
                     "scale": {"E": 0.1, "I": 0.1},
                 },
             },
@@ -131,7 +131,7 @@ CFG_NETWORK = {
         (2, "SI"): {
             "layers": {
                 0: {
-                    "p": {"E": 0.05, "I": 0.05},
+                    "p": {"E": 0.2, "I": 0.2},
                     "scale": {"E": 0.1, "I": 0.1},
                 },
             },
@@ -139,7 +139,7 @@ CFG_NETWORK = {
         (2, "USI"): {
             "layers": {
                 0: {
-                    "p": {"E": 0.05, "I": 0.05},
+                    "p": {"E": 0.2, "I": 0.2},
                     "scale": {"E": 0.1, "I": 0.1},
                 },
             },
@@ -162,7 +162,7 @@ CFG_NETWORK = {
 
     # 3) liquid -> liquid
     "liq_intra_connection": "random",
-    "p_liq_intra_pairs": {"EE": 0.05, "EI": 0.05, "IE": 0.05, "II": 0.00},
-    "liq_intra_gain_pairs": {"EE": 0.1, "EI": 0.1, "IE": 0.6, "II": 0.0},
+    "p_liq_intra_pairs": {"EE": 0.5, "EI": 0.5, "IE": 0.5, "II": 0.5},
+    "liq_intra_gain_pairs": {"EE": 0.25, "EI": 0.25, "IE": 0.25, "II": 0.25},
 
 }

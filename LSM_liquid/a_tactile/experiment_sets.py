@@ -30,7 +30,7 @@ TRAINING_SETS = {
 LIQUID_SETS = {
     "base": {
         "LIQUID_MAT": ["Al_board","buta_omote","buta_ura","cork","denim","rubber_board","washi","wood_board"],
-        "NUM_LIQUID_SAMPLE": [50],
+        "NUM_LIQUID_SAMPLE": [100],
     },
 
 }
