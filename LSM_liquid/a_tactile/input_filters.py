@@ -11,13 +11,13 @@ COMPONENT_NAMES = ("RI", "SI", "USI")
 
 EXP_FILTER_tau = 2.0 * 1e-3
 
-RI_tau = 0.5 * 1e-3
-SI_tau = 2.5 * 1e-3
-USI_tau = 80 * 1e-3
+RI_tau = 8.0 * 1e-3
+SI_tau = 200 * 1e-3
+USI_tau = 1744.6 * 1e-3
 
-RI_gain = 1.0
-SI_gain = 1.0
-USI_gain = 1.0
+RI_gain = 0.74
+SI_gain = 0.24
+USI_gain = 0.07
 
 SENSOR_GAIN = {
     0: 1 / 1.19,
@@ -25,12 +25,13 @@ SENSOR_GAIN = {
     2: 1 / 2.03,
 }
 
+
 FILTER_GAIN = {
     "RI": (1 / 5.28)*70,
     "SI": (1 / 22.57)*20*7,
     "USI": (1 / 532.04)*20,
-    "merkel": 1.0,
-    "meissner": 1.0,
+    "merkel": 0.008,
+    "meissner": 0.0876,
 }
 
 def _exp_filter(data, dt):
@@ -100,8 +101,8 @@ def USI(data, t, dt):
 
 
 def calc_meissner(data, t, dt):
-    return RI(data, t, dt)
+    return RI_gain * RI(data, t, dt)
 
 
 def calc_merkel(data, t, dt):
-    return RI(data, t, dt) + SI(data, t, dt) + USI(data, t, dt)
+    return RI_gain * RI(data, t, dt) + SI_gain * SI(data, t, dt) + USI_gain * USI(data, t, dt)

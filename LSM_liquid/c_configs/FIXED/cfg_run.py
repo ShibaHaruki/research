@@ -12,7 +12,7 @@ CFG_RUN = {
     "TEST_RESULT_DIR": "test_run",
     "SPIKE_COUNT_DIR": "spike_counts",
     "DEBUG_DIR": "debug",
-    "LIQUID_RESULT_DIR": "liquid_run",
+    "LIQUID_RESULT_DIR": "liquid_run_1",
     "WEIGHT_CHANGE_DIR": "weight_changes",
 
     "CACHE_DIR": "_runtime_cache",
