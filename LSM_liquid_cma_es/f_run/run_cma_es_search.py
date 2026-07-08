@@ -23,6 +23,14 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
 from pathlib import Path
 
+try:
+    import cma
+except ImportError as exc:
+    raise SystemExit(
+        "The CMA-ES search now uses the pycma package. Install it with: "
+        "python -m pip install cma"
+    ) from exc
+
 import numpy as np
 
 
@@ -605,81 +613,33 @@ def cma_es_ask_tell(
     sigma0: float,
     generations: int,
     population_size: int,
-    rng: np.random.Generator,
+    seed: int,
     evaluate_population,
 ) -> tuple[np.ndarray, float]:
-    n_dim = x0.size
-    mu = max(1, population_size // 2)
-    weights = np.log(mu + 0.5) - np.log(np.arange(1, mu + 1))
-    weights = weights / np.sum(weights)
-    mueff = 1.0 / np.sum(weights * weights)
-
-    cc = (4 + mueff / n_dim) / (n_dim + 4 + 2 * mueff / n_dim)
-    cs = (mueff + 2) / (n_dim + mueff + 5)
-    c1 = 2 / ((n_dim + 1.3) ** 2 + mueff)
-    cmu = min(
-        1 - c1,
-        2 * (mueff - 2 + 1 / mueff) / ((n_dim + 2) ** 2 + mueff),
+    strategy = cma.CMAEvolutionStrategy(
+        np.asarray(x0, dtype=float).tolist(),
+        float(sigma0),
+        {
+            "popsize": int(population_size),
+            "seed": int(seed),
+            "verb_disp": 0,
+            "verbose": -9,
+        },
     )
-    damps = 1 + 2 * max(0, math.sqrt((mueff - 1) / (n_dim + 1)) - 1) + cs
-    chi_n = math.sqrt(n_dim) * (1 - 1 / (4 * n_dim) + 1 / (21 * n_dim * n_dim))
-
-    mean = np.asarray(x0, dtype=float).copy()
-    sigma = float(sigma0)
-    pc = np.zeros(n_dim)
-    ps = np.zeros(n_dim)
-    b = np.eye(n_dim)
-    d = np.ones(n_dim)
-    c = np.eye(n_dim)
-    invsqrt_c = np.eye(n_dim)
-    eigeneval = 0
-    counteval = 0
-    best_x = mean.copy()
+    best_x = np.asarray(x0, dtype=float).copy()
     best_obj = float("inf")
 
     for generation in range(1, int(generations) + 1):
-        arz = rng.normal(size=(population_size, n_dim))
-        ary = arz @ (b * d).T
-        arx = mean + sigma * ary
-        results = evaluate_population(generation, arx)
+        solutions = strategy.ask()
+        results = evaluate_population(generation, np.asarray(solutions, dtype=float))
+        objectives: list[float] = []
         for result in results:
             obj = float(result["objective"])
+            objectives.append(obj if math.isfinite(obj) else 1e300)
             if obj < best_obj:
                 best_obj = obj
-                best_x = np.asarray(arx[int(result["candidate"]) - 1], dtype=float).copy()
-
-        order = np.argsort([float(item["objective"]) for item in results])
-        old_mean = mean.copy()
-        x_sel = arx[order[:mu]]
-        z_sel = arz[order[:mu]]
-        mean = np.sum(x_sel * weights[:, None], axis=0)
-        z_mean = np.sum(z_sel * weights[:, None], axis=0)
-        y_mean = (mean - old_mean) / sigma
-
-        ps = (1 - cs) * ps + math.sqrt(cs * (2 - cs) * mueff) * (invsqrt_c @ y_mean)
-        hsig = float(
-            np.linalg.norm(ps)
-            / math.sqrt(1 - (1 - cs) ** (2 * (generation + 1)))
-            / chi_n
-            < (1.4 + 2 / (n_dim + 1))
-        )
-        pc = (1 - cc) * pc + hsig * math.sqrt(cc * (2 - cc) * mueff) * y_mean
-        artmp = (x_sel - old_mean) / sigma
-        c = (
-            (1 - c1 - cmu) * c
-            + c1 * (np.outer(pc, pc) + (1 - hsig) * cc * (2 - cc) * c)
-            + cmu * sum(weights[i] * np.outer(artmp[i], artmp[i]) for i in range(mu))
-        )
-        sigma *= math.exp((cs / damps) * (np.linalg.norm(ps) / chi_n - 1))
-        counteval += population_size
-
-        if counteval - eigeneval > population_size / (c1 + cmu) / n_dim / 10:
-            eigeneval = counteval
-            c = np.triu(c) + np.triu(c, 1).T
-            vals, vecs = np.linalg.eigh(c)
-            d = np.sqrt(np.maximum(vals, 1e-30))
-            b = vecs
-            invsqrt_c = b @ np.diag(1 / d) @ b.T
+                best_x = np.asarray(solutions[int(result["candidate"]) - 1], dtype=float).copy()
+        strategy.tell(solutions, objectives)
     return best_x, best_obj
 
 
@@ -828,13 +788,12 @@ def run_one_cma_start(
                     results.append(result)
         return sorted(results, key=lambda item: int(item["candidate"]))
 
-    rng = np.random.default_rng(int(args.seed) + 100000 * int(start_index))
     best_x, best_obj = cma_es_ask_tell(
         x0=np.asarray(x0, dtype=float),
         sigma0=float(args.sigma0),
         generations=int(args.generations),
         population_size=int(args.population_size),
-        rng=rng,
+        seed=int(args.seed) + 100000 * int(start_index),
         evaluate_population=evaluate_population,
     )
     best = {

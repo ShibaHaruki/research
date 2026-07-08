@@ -20,6 +20,7 @@ and trial-specific overrides in `c_configs/EXPERIMENTS`.
 Common commands:
 
 ```powershell
+python -m pip install cma
 python .\run_experiment.py exp_001_base --dry-run
 python .\run_experiment.py exp_001_base
 python .\run_experiment.py exp_002_liquid_gain_sweep_example --trial liq_gain_1p0

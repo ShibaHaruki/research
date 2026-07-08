@@ -5,3 +5,4 @@ matplotlib>=3.8
 pygame-ce>=2.5
 tqdm>=4.60
 scipy>=1.10
+cmake>=3.26
