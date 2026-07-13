@@ -152,6 +152,9 @@ def network_dir_name(net_cfg: dict, include_output: bool = True) -> str:
     key_cfg = {
         "N_liq": net_cfg.get("N_liq"),
         "r_inh_liq": net_cfg.get("r_inh_liq"),
+        # Input route probabilities/scales are part of the effective network
+        # and must distinguish CMA-ES candidates in the output directory.
+        "IN_ROUTE": net_cfg.get("IN_ROUTE"),
         "IN_ROUTE_LAYERS": net_cfg.get("IN_ROUTE_LAYERS"),
         "liq_intra_connection": net_cfg.get("liq_intra_connection"),
         "p_liq_intra_pairs": net_cfg.get("p_liq_intra_pairs"),
@@ -309,6 +312,7 @@ def config_snapshot_payload(
         "test": cfg.get("test", {}),
         "run": cfg.get("run", {}),
         "input_filter_map": cfg.get("input_filter_map"),
+        "search_params": cfg.get("search_params", {}),
         "network_params": network_params_snapshot(cfg, net_cfg, include_output=include_output),
         "model_params": model_params_snapshot(cfg, include_learning=include_learning),
     }

@@ -20,9 +20,9 @@ FILTER_FUNCS = {
 }
 
 INPUT_FILTER_MAP = {
-    0: ["merkel", "meissner", "RI", "SI", "USI"],
-    1: ["merkel", "meissner", "RI", "SI", "USI"],
-    2: ["merkel", "meissner", "RI", "SI", "USI"],
+    0: ["RI", "SI"],
+    1: ["RI", "SI"],
+    2: ["RI", "SI"],
 }
 
 OPT_FILTER_GAIN = {

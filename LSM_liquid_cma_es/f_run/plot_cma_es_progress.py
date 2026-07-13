@@ -27,8 +27,37 @@ DEFAULT_SEARCH_DIR = (
     PROJECT_ROOT
     / "g_tactile_results"
     / "cma_es_search"
-    / "liquid_accuracy_fisher"
+    / "liquid_accuracy_spikes_fisher"
 )
+
+DEFAULT_OBJECTIVE_WEIGHTS = {
+    "alpha": 100.0,
+    "beta": 1.0,
+    "gamma": 1.0,
+    "delta": 100.0,
+    "epsilon": 1.0,
+}
+
+
+def load_objective_weights(search_dir: Path) -> dict[str, float]:
+    weights = dict(DEFAULT_OBJECTIVE_WEIGHTS)
+    settings_path = search_dir / "search_settings.json"
+    if not settings_path.exists():
+        return weights
+    payload = json.loads(settings_path.read_text(encoding="utf-8"))
+    aliases = {
+        "alpha": ("alpha", "\u03b1"),
+        "beta": ("beta", "\u03b2"),
+        "gamma": ("gamma", "\u03b3"),
+        "delta": ("delta", "\u03b4"),
+        "epsilon": ("epsilon", "\u03b5"),
+    }
+    for name, keys in aliases.items():
+        for key in keys:
+            if key in payload:
+                weights[name] = float(payload[key])
+                break
+    return weights
 
 
 def _to_numeric(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
@@ -38,7 +67,10 @@ def _to_numeric(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return df
 
 
-def build_generation_summary(results_csv: Path) -> pd.DataFrame:
+def build_generation_summary(
+    results_csv: Path,
+    objective_weights: dict[str, float] | None = None,
+) -> pd.DataFrame:
     df = pd.read_csv(results_csv)
     numeric_columns = [
         "generation",
@@ -55,6 +87,38 @@ def build_generation_summary(results_csv: Path) -> pd.DataFrame:
     df = df.dropna(subset=["generation", "objective"])
     if df.empty:
         raise ValueError(f"No valid objective rows found in {results_csv}")
+
+    weights = objective_weights or DEFAULT_OBJECTIVE_WEIGHTS
+    component_sources = {
+        "accuracy_variance_contribution": (
+            "accuracy8_overall_variance", weights["beta"]
+        ),
+        "spike_penalty_contribution": ("spike_ratio", weights["gamma"]),
+        "silent_penalty_contribution": (
+            "silent_neuron_fraction", weights["delta"]
+        ),
+        "fisher_contribution": ("fisher_ratio_DR_mean", -weights["epsilon"]),
+    }
+    for name, (source, weight) in component_sources.items():
+        if source in df.columns:
+            df[name] = pd.to_numeric(df[source], errors="coerce") * float(weight)
+
+    known_columns = {
+        "start", "generation", "candidate", "objective", "metrics",
+        "accuracy8_overall_mean", "accuracy8_overall_std",
+        "accuracy8_overall_variance", "accuracy3_overall_mean",
+        "accuracy3_overall_std", "accuracy3_overall_variance",
+        "fisher_ratio_DR_mean", "fisher_ratio_DR_std", "spike_base",
+        "spike_ratio", "mean_total_spikes_per_trial", "std_total_spikes_per_trial",
+        "total_spikes_all_trials", "silent_neuron_count", "total_neuron_count",
+        "active_neuron_count", "silent_neuron_fraction", "n_spike_trials",
+        "n_activity_trials", "n_activity_mismatched_shapes",
+        *component_sources,
+    }
+    parameter_columns = [
+        column for column in df.columns
+        if column not in known_columns and pd.api.types.is_numeric_dtype(df[column])
+    ]
 
     rows = []
     best_so_far = float("inf")
@@ -85,6 +149,13 @@ def build_generation_summary(results_csv: Path) -> pd.DataFrame:
                     None if pd.isna(best_row[metric]) else float(best_row[metric])
                 )
                 row[f"mean_{metric}"] = float(group[metric].mean())
+        for component in component_sources:
+            if component in group.columns:
+                row[f"best_{component}"] = float(best_row[component])
+                row[f"mean_{component}"] = float(group[component].mean())
+        for parameter in parameter_columns:
+            row[f"best_{parameter}"] = float(best_row[parameter])
+            row[f"mean_{parameter}"] = float(group[parameter].mean())
         rows.append(row)
 
     summary = pd.DataFrame(rows)
@@ -171,6 +242,62 @@ def save_plots(summary: pd.DataFrame, out_dir: Path) -> None:
     fig.savefig(out_dir / "cma_es_progress.png", dpi=160)
     plt.close(fig)
 
+    components = [
+        ("accuracy_variance_contribution", "Accuracy variance"),
+        ("spike_penalty_contribution", "Spike penalty"),
+        ("silent_penalty_contribution", "Silent-neuron penalty"),
+        ("fisher_contribution", "Fisher contribution"),
+    ]
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
+    for axis, (column, label) in zip(axes.flat, components):
+        best_column = f"best_{column}"
+        mean_column = f"mean_{column}"
+        if best_column in summary.columns:
+            axis.plot(gen, summary[best_column], marker="o", label="best")
+            axis.plot(gen, summary[mean_column], marker=".", alpha=0.7, label="mean")
+        axis.axhline(0.0, color="black", linewidth=0.7)
+        axis.set_title(label)
+        axis.grid(True, alpha=0.3)
+        axis.legend()
+    for axis in axes[-1]:
+        axis.set_xlabel("Generation")
+    fig.suptitle("Objective-function contributions")
+    fig.tight_layout()
+    fig.savefig(out_dir / "cma_es_objective_components.png", dpi=160)
+    plt.close(fig)
+
+    parameter_columns = sorted(
+        column.removeprefix("best_")
+        for column in summary.columns
+        if column.startswith("best_")
+        and column not in {"best_candidate", "best_so_far"}
+        and f"mean_{column.removeprefix('best_')}" in summary.columns
+        and column.removeprefix("best_") not in {
+            "objective", "accuracy8_overall_mean", "accuracy3_overall_mean",
+            "fisher_ratio_DR_mean", "accuracy8_overall_std", "accuracy3_overall_std",
+            "fisher_ratio_DR_std", "accuracy_variance_contribution",
+            "spike_penalty_contribution", "silent_penalty_contribution",
+            "fisher_contribution",
+        }
+    )
+    if parameter_columns:
+        ncols = 3
+        nrows = int(np.ceil(len(parameter_columns) / ncols))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(15, 3.2 * nrows), squeeze=False)
+        for axis, parameter in zip(axes.flat, parameter_columns):
+            axis.plot(gen, summary[f"best_{parameter}"], marker="o", label="best")
+            axis.plot(gen, summary[f"mean_{parameter}"], marker=".", alpha=0.7, label="mean")
+            axis.set_title(parameter)
+            axis.set_xlabel("Generation")
+            axis.grid(True, alpha=0.3)
+            axis.legend()
+        for axis in axes.flat[len(parameter_columns):]:
+            axis.set_visible(False)
+        fig.suptitle("CMA-ES parameter progress")
+        fig.tight_layout()
+        fig.savefig(out_dir / "cma_es_parameter_progress.png", dpi=160)
+        plt.close(fig)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Summarize CMA-ES search progress.")
@@ -183,7 +310,10 @@ def main() -> int:
     if not results_csv.exists():
         raise FileNotFoundError(f"{results_csv} was not found")
 
-    summary = build_generation_summary(results_csv)
+    summary = build_generation_summary(
+        results_csv,
+        objective_weights=load_objective_weights(search_dir),
+    )
     out_dir = search_dir / "progress"
     out_dir.mkdir(parents=True, exist_ok=True)
 

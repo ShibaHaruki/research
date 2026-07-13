@@ -19,6 +19,34 @@ CFG_NETWORK = {
     "N_liq": [1000],
     "r_inh_liq": 0.5,
 
+    # Optional shared input settings. When enabled, the p/scale values below
+    # are applied to every sensor route using the same filter name.
+    "SHARED_IN_ROUTE": {
+        "enabled": False,
+        "filters": {
+            "merkel": {
+                "p": {"E": 0.0, "I": 0.0},
+                "scale": {"E": 0.0, "I": 0.0},
+            },
+            "meissner": {
+                "p": {"E": 0.0, "I": 0.0},
+                "scale": {"E": 0.0, "I": 0.0},
+            },
+            "RI": {
+                "p": {"E": 0.1, "I": 0.1},
+                "scale": {"E": 0.1, "I": 0.1},
+            },
+            "SI": {
+                "p": {"E": 0.1, "I": 0.1},
+                "scale": {"E": 0.1, "I": 0.1},
+            },
+            "USI": {
+                "p": {"E": 0.0, "I": 0.0},
+                "scale": {"E": 0.1, "I": 0.1},
+            },
+        },
+    },
+
     # 2) input -> liquid
     # Use IN_ROUTE when you want per-filter input settings.
     # Key: (channel_index, filter_name)

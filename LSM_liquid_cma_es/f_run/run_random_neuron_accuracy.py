@@ -335,6 +335,11 @@ def evaluate_random_neuron_accuracy(
     window_end_ms: float | None = None,
     out_dir: Path | None = None,
 ) -> dict:
+    if int(n_repeats) <= 0:
+        raise ValueError(
+            "n_repeats must be at least 1. Use n_neurons=0 to evaluate all available neurons."
+        )
+
     states, materials, source_files, bin_ms = load_liquid_states_by_material(
         internal_state_dir,
         max_samples_per_class=max_samples_per_class,

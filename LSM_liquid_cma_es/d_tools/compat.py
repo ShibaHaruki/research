@@ -113,7 +113,19 @@ def canonical_input_route(
 
     explicit_route = network_cfg.get("IN_ROUTE", {})
     if isinstance(explicit_route, dict):
-        for raw_key, value in explicit_route.items():
+        # Apply exact (channel, filter) routes before legacy component aliases.
+        # Otherwise a preceding merkel/meissner alias can claim RI/SI via
+        # setdefault and silently hide the explicitly configured route.
+        explicit_items = list(explicit_route.items())
+        explicit_items.sort(
+            key=lambda item: 0
+            if (
+                (normalized := normalize_input_route_key(item[0])) is not None
+                and normalized in valid_pairs
+            )
+            else 1
+        )
+        for raw_key, value in explicit_items:
             norm_key = normalize_input_route_key(raw_key)
             if norm_key is None:
                 continue

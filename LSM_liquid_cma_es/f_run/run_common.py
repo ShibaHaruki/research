@@ -53,6 +53,21 @@ def _fill_missing_model_params(net_cfg: dict, model_params: dict) -> None:
         net_cfg.setdefault(key, deepcopy(value))
 
 
+def _apply_shared_input_routes(net_cfg: dict) -> None:
+    shared_cfg = net_cfg.pop("SHARED_IN_ROUTE", {})
+    if not shared_cfg.get("enabled", False):
+        return
+    shared_filters = shared_cfg.get("filters", {})
+    for (_, filter_name), route_cfg in net_cfg.get("IN_ROUTE", {}).items():
+        shared = shared_filters.get(str(filter_name))
+        if not shared:
+            continue
+        for layer_cfg in route_cfg.get("layers", {}).values():
+            for key in ("p", "scale"):
+                if key in shared:
+                    layer_cfg[key] = deepcopy(shared[key])
+
+
 def build_cfg():
     return {
         "common": COMMON_SETS["base"],
@@ -105,6 +120,7 @@ def build_network_cfg(cfg: dict) -> dict:
 
     dt_s = float(common["dt_ms"])
     net_cfg = deepcopy(network_cfg)
+    _apply_shared_input_routes(net_cfg)
     net_cfg.update(
         {
             "dt_ms": dt_s * 1000.0,

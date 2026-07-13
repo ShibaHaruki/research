@@ -11,8 +11,8 @@ COMPONENT_NAMES = ("RI", "SI", "USI")
 
 EXP_FILTER_tau = 2.0 * 1e-3
 
-RI_tau = 8.0 * 1e-3
-SI_tau = 200 * 1e-3
+RI_tau = 2.5 * 1e-3
+SI_tau = 80 * 1e-3
 USI_tau = 1744.6 * 1e-3
 
 RI_gain = 0.74
@@ -27,9 +27,9 @@ SENSOR_GAIN = {
 
 
 FILTER_GAIN = {
-    "RI": (1 / 5.28)*70,
-    "SI": (1 / 22.57)*20*7,
-    "USI": (1 / 532.04)*20,
+    "RI": 1 / 5.28,
+    "SI": 1 / 22.57,
+    "USI": 1 / 532.04,
     "merkel": 0.008,
     "meissner": 0.0876,
 }
