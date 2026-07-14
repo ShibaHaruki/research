@@ -1,31 +1,34 @@
-"""Tactile waveform filters for Merkel / Meissner input currents."""
+"""触覚時系列データから、入力フィルタを計算する"""
 
 from __future__ import annotations
 import numpy as np
 
-
+#差分幅
 DERIVATIVE_WIDTH = 1
 
 COMPONENT_NAMES = ("RI", "SI", "USI")
 
-
+#指数平滑フィルタの時定数
 EXP_FILTER_tau = 2.0 * 1e-3
 
+#入力フィルタの時定数
 RI_tau = 2.5 * 1e-3
 SI_tau = 80 * 1e-3
 USI_tau = 1744.6 * 1e-3
 
+#入力フィルタのgain
 RI_gain = 0.74
 SI_gain = 0.24
 USI_gain = 0.07
 
+#センサー間のスケールの違いを補正するためのゲイン
 SENSOR_GAIN = {
     0: 1 / 1.19,
     1: 1 / 2.18,
     2: 1 / 2.03,
 }
 
-
+#入力フィルタ間のスケールの違いを補正するためのゲイン
 FILTER_GAIN = {
     "RI": 1 / 5.28,
     "SI": 1 / 22.57,
@@ -34,6 +37,7 @@ FILTER_GAIN = {
     "meissner": 0.0876,
 }
 
+#指数平滑フィルタ
 def _exp_filter(data, dt):
     filtered = np.zeros_like(data, dtype=float)
     if len(data) == 0:
@@ -45,11 +49,13 @@ def _exp_filter(data, dt):
         filtered[i] = filtered[i - 1] + alpha * (data[i] - filtered[i - 1])
     return filtered
 
+#差分→絶対値
 def _abs_derivative(data, t, i, width=DERIVATIVE_WIDTH):
     j = max(0, i - int(width))
     if j == i:
         return 0.0
     return np.abs(data[i] - data[j]) / (t[i] - t[j])
+
 
 def _calc_components(data, t, dt):
     components = np.zeros((3, len(t)))
@@ -66,23 +72,24 @@ def _calc_components(data, t, dt):
 
     return components
 
+#RIフィルタ
 def _RI_step(components, i, dF_dt, dt):
     return components[0, i - 1] + dF_dt + (-components[0, i - 1] * dt / RI_tau)
 
-
+#SIフィルタ
 def _SI_step(components, i, dF_dt, dt):
     return components[1, i - 1] +  dF_dt + (-(components[1, i - 1] - 0.24 * 0.13) * dt / SI_tau)
 
-
+#USIフィルタ
 def _USI_step(components, i, dF_dt, dt):
     return components[2, i - 1] + dF_dt + (-components[2, i - 1] * dt / USI_tau)
 
-
+#meissnerフィルタ
 def calc_meissner_components(data, t, dt):
     components = _calc_components(data, t, dt)
     return {name: components[index, :] for index, name in enumerate(COMPONENT_NAMES)}
 
-
+#merkelフィルタ
 def calc_merkel_components(data, t, dt):
     components = _calc_components(data, t, dt)
     return {name: components[index, :] for index, name in enumerate(COMPONENT_NAMES)}

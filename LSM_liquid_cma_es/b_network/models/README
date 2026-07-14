@@ -1,0 +1,59 @@
+# Models
+
+このディレクトリでは、Liquid State Machine で使用する "ニューロンモデル" と "シナプスモデル" 及び "ニューロン間の接続方法" を定義しています。
+
+## ファイル構成
+
+### `neuron_models.py`
+
+Liquid層で使用するニューロンモデルを定義
+
+現在登録されているモデル:
+- `LIF（Leaky Integrate-and-Fire）`
+
+主な要素：
+
+- 膜電位 `v`
+- 膜時定数 `tau_m`
+- 不応期 `t_ref`
+- 発火閾値 `v_thr`
+- リセット電位 `v_reset`
+- 触覚入力 `I_merkel`, `I_meissner`, `I_RI`, `I_SI`, `I_USI`
+- 興奮性・抑制性シナプス入力 `I_exc`, `I_inh`
+
+### `synapse_models.py`
+
+ニューロン間のシナプス電流モデルを定義します。
+
+現在登録されているモデル：
+
+- `double_exp`
+  - 二重指数関数型シナプス
+  
+- `double_exp_stp`
+  - 短期シナプス可塑性を含む二重指数関数型シナプス
+
+興奮性入力は `I_exc`、抑制性入力は `I_inh` に加算されます。
+
+### `model_utils.py`
+
+モデルを登録・検証するための共通処理を定義します。
+
+主な関数：
+
+- `ensure_keys`
+  - モデルに必要な設定が含まれているか確認する
+- `register_model`
+  - モデルを登録表へ追加する
+- `merge_namespace`
+  - Brian2で使用する名前空間を統合する
+- `alias_model`
+  - 登録済みモデルに別名を設定する
+
+## モデルの選択
+
+使用するモデルは、以下の設定ファイルから指定します。
+
+```text
+c_configs/FIXED/cfg_neuron_models.py
+c_configs/FIXED/cfg_synapse_models.py

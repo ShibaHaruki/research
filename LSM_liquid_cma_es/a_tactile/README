@@ -1,0 +1,39 @@
+# a_tactile
+
+このフォルダでは実験条件とLiquid State Machine へ入力するフィルタの定義をしています
+
+## Files
+
+- `experiment_sets.py`
+  - 使用する素材
+  - センサー数
+  - サンプル数
+  - 学習・液体・評価条件
+
+- `input_filters.py`
+  - RI、SI、USIフィルタ
+  - Merkel、Meissnerフィルタ
+  - センサーゲイン
+  - フィルタゲイン
+
+## Input filters
+
+- RI: Rapidly adapting input
+- SI: Slowly adapting input
+- USI: Ultra-slowly adapting input
+- Merkel: RI成分とSI・USI成分の合成
+- Meissner: RI成分
+
+## Gains
+
+- `SENSOR_GAIN`
+  - センサーごとの振幅補正
+
+- `FILTER_GAIN`
+  - フィルタごとの振幅補正
+
+## Usage
+
+```python
+from a_tactile.input_filters import RI, SI, USI
+from a_tactile.experiment_sets import COMMON_SETS

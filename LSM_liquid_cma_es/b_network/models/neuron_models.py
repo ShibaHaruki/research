@@ -15,25 +15,25 @@ REQUIRED_NEURON_KEYS = (
 
 
 COMMON_NEURON_MODEL_PARAMETERS = """
-I_merkel   : 1
-I_meissner : 1
-I_RI       : 1
-I_SI       : 1
-I_USI      : 1
-I_in = I_merkel + I_meissner + I_RI + I_SI + I_USI : 1
+                                    I_merkel   : 1
+                                    I_meissner : 1
+                                    I_RI       : 1
+                                    I_SI       : 1
+                                    I_USI      : 1
+                                    I_in = I_merkel + I_meissner + I_RI + I_SI + I_USI : 1
 
-tau_m : second
-t_ref : second
+                                    tau_m : second
+                                    t_ref : second
 
-bias   : 1 (shared)
-v_thr  : 1 (shared)
-v_reset: 1 (shared)
+                                    bias   : 1 (shared)
+                                    v_thr  : 1
+                                    v_reset: 1
 
-x : 1 (constant)
-y : 1 (constant)
-z : 1 (constant)
-typ : integer (constant)
-"""
+                                    x : 1 (constant)
+                                    y : 1 (constant)
+                                    z : 1 (constant)
+                                    typ : integer (constant)
+                                 """
 
 
 def neuron_model(
@@ -64,8 +64,8 @@ LIF_MODEL = register_model(
     "LIF",
     neuron_model(
         eqs=COMMON_NEURON_MODEL_PARAMETERS + """
-dv/dt = (-v + bias + I_in - I_inh + I_exc) / tau_m : 1 (unless refractory)
-""",
+            dv/dt = (-v + bias + I_in - I_inh + I_exc) / tau_m : 1 (unless refractory)
+            """,
         threshold="v >= v_thr",
         reset="v = v_reset",
         refractory="timestep(t - lastspike, dt) <= timestep(t_ref, dt)",

@@ -90,6 +90,9 @@ def build_generation_summary(
 
     weights = objective_weights or DEFAULT_OBJECTIVE_WEIGHTS
     component_sources = {
+        "accuracy_contribution": (
+            "accuracy8_overall_mean", -weights["alpha"]
+        ),
         "accuracy_variance_contribution": (
             "accuracy8_overall_variance", weights["beta"]
         ),
@@ -139,10 +142,14 @@ def build_generation_summary(
         for metric in (
             "accuracy8_overall_mean",
             "accuracy8_overall_std",
+            "accuracy8_overall_variance",
             "accuracy3_overall_mean",
             "accuracy3_overall_std",
             "fisher_ratio_DR_mean",
             "fisher_ratio_DR_std",
+            "mean_total_spikes_per_trial",
+            "spike_ratio",
+            "silent_neuron_fraction",
         ):
             if metric in group.columns:
                 row[f"best_{metric}"] = (
@@ -177,93 +184,50 @@ def save_plots(summary: pd.DataFrame, out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     gen = summary["generation"]
 
-    fig, axes = plt.subplots(3, 1, figsize=(9, 10), sharex=True)
+    fig, axes = plt.subplots(3, 2, figsize=(14, 15), sharex=True)
 
-    axes[0].plot(gen, summary["objective_best"], marker="o", label="best in generation")
-    axes[0].plot(gen, summary["objective_best_so_far"], marker="s", label="best so far")
-    axes[0].plot(gen, summary["objective_mean"], marker=".", alpha=0.7, label="population mean")
-    axes[0].fill_between(
+    objective_axis = axes[0, 0]
+    objective_axis.plot(gen, summary["objective_best"], marker="o", label="best in generation")
+    objective_axis.plot(gen, summary["objective_best_so_far"], marker="s", label="best so far")
+    objective_axis.plot(gen, summary["objective_mean"], marker=".", alpha=0.7, label="population mean")
+    objective_axis.fill_between(
         gen,
         summary["objective_mean"] - summary["objective_std"],
         summary["objective_mean"] + summary["objective_std"],
         alpha=0.15,
         label="population std",
     )
-    axes[0].set_ylabel("Objective (lower is better)")
-    axes[0].grid(True, alpha=0.3)
-    axes[0].legend()
+    objective_axis.set_title("Objective (weighted sum)")
+    objective_axis.set_ylabel("Objective value")
+    objective_axis.grid(True, alpha=0.3)
+    objective_axis.legend()
 
-    if "best_accuracy8_overall_mean" in summary.columns:
-        axes[1].plot(
-            gen,
-            summary["best_accuracy8_overall_mean"],
-            marker="o",
-            label="best candidate acc8",
-        )
-        axes[1].plot(
-            gen,
-            summary["mean_accuracy8_overall_mean"],
-            marker=".",
-            alpha=0.7,
-            label="population mean acc8",
-        )
-    if "best_accuracy3_overall_mean" in summary.columns:
-        axes[1].plot(
-            gen,
-            summary["best_accuracy3_overall_mean"],
-            marker="s",
-            label="best candidate acc3",
-        )
-    axes[1].set_ylabel("Accuracy")
-    axes[1].set_ylim(0.0, 1.02)
-    axes[1].grid(True, alpha=0.3)
-    axes[1].legend()
-
-    if "best_fisher_ratio_DR_mean" in summary.columns:
-        axes[2].plot(
-            gen,
-            summary["best_fisher_ratio_DR_mean"],
-            marker="o",
-            label="best candidate Fisher DR",
-        )
-        axes[2].plot(
-            gen,
-            summary["mean_fisher_ratio_DR_mean"],
-            marker=".",
-            alpha=0.7,
-            label="population mean Fisher DR",
-        )
-    axes[2].set_xlabel("Generation")
-    axes[2].set_ylabel("Fisher ratio DR")
-    axes[2].grid(True, alpha=0.3)
-    axes[2].legend()
-
-    fig.tight_layout()
-    fig.savefig(out_dir / "cma_es_progress.png", dpi=160)
-    plt.close(fig)
-
-    components = [
-        ("accuracy_variance_contribution", "Accuracy variance"),
-        ("spike_penalty_contribution", "Spike penalty"),
-        ("silent_penalty_contribution", "Silent-neuron penalty"),
-        ("fisher_contribution", "Fisher contribution"),
+    component_plots = [
+        ("accuracy8_overall_mean", "Accuracy"),
+        ("accuracy8_overall_variance", "Accuracy variance"),
+        ("mean_total_spikes_per_trial", "Mean total spikes"),
+        ("silent_neuron_fraction", "Silent-neuron fraction"),
+        ("fisher_ratio_DR_mean", "Fisher ratio DR"),
     ]
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
-    for axis, (column, label) in zip(axes.flat, components):
+    for axis, (column, title) in zip(axes.flat[1:], component_plots):
         best_column = f"best_{column}"
         mean_column = f"mean_{column}"
         if best_column in summary.columns:
             axis.plot(gen, summary[best_column], marker="o", label="best")
             axis.plot(gen, summary[mean_column], marker=".", alpha=0.7, label="mean")
         axis.axhline(0.0, color="black", linewidth=0.7)
-        axis.set_title(label)
+        axis.set_title(title)
+        axis.set_ylabel("Raw value")
         axis.grid(True, alpha=0.3)
         axis.legend()
-    for axis in axes[-1]:
+
+    for axis in axes[-1, :]:
         axis.set_xlabel("Generation")
-    fig.suptitle("Objective-function contributions")
+
+    fig.suptitle("CMA-ES progress and objective contributions")
+
     fig.tight_layout()
-    fig.savefig(out_dir / "cma_es_objective_components.png", dpi=160)
+    fig.savefig(out_dir / "cma_es_progress.png", dpi=160)
     plt.close(fig)
 
     parameter_columns = sorted(
@@ -274,8 +238,11 @@ def save_plots(summary: pd.DataFrame, out_dir: Path) -> None:
         and f"mean_{column.removeprefix('best_')}" in summary.columns
         and column.removeprefix("best_") not in {
             "objective", "accuracy8_overall_mean", "accuracy3_overall_mean",
+            "accuracy8_overall_variance", "mean_total_spikes_per_trial",
+            "spike_ratio", "silent_neuron_fraction",
             "fisher_ratio_DR_mean", "accuracy8_overall_std", "accuracy3_overall_std",
             "fisher_ratio_DR_std", "accuracy_variance_contribution",
+            "accuracy_contribution",
             "spike_penalty_contribution", "silent_penalty_contribution",
             "fisher_contribution",
         }

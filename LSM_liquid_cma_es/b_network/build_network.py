@@ -12,65 +12,30 @@ from brian2 import Hz, NeuronGroup, PoissonGroup, Synapses, TimedArray, ms
 
 from .models.connectivity_models import get_connection, layer_val
 from .models.model_utils import merge_namespace
+
 from .models.neuron_models import NEURON_MODELS
 from .models.synapse_models import SYNAPSE_MODELS
+
 from .weight_initialization import init_in_to_liq, init_liq_intra
 
 
 PAIR_KEYS = ("EE", "EI", "IE", "II")
 
 
-# ---------------------------------------------------------------------------
-# Config helpers
-# ---------------------------------------------------------------------------
-# 設定はスカラー、list、層別 dict、EE/EI/IE/II dict が混ざる。
-# ここで「今の層・今の接続で使う値」にそろえてから下の構築処理へ渡す。
+# 設定がスカラーでもリストでも、指定したLiquid層の値を取得
 def _layer_float(value: Any, layer_index: int) -> float:
     return float(layer_val(value, layer_index))
 
-
+# 設定された層サイズを整数リストで返す
 def _layer_sizes(cfg: dict, key: str) -> list[int]:
     sizes = cfg[key]
     if isinstance(sizes, Number):
         return [int(sizes)]
     return [int(size) for size in sizes]
 
-
-def _is_pair_config(value: Any) -> bool:
-    if isinstance(value, Number):
-        return True
-    return isinstance(value, dict) and any(key in value for key in PAIR_KEYS)
-
-
-def _pair_config(value: Any, default: Any | None = None) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        return {key: value for key in PAIR_KEYS}
-
-    values = {key: value.get(key, default) for key in PAIR_KEYS}
-    missing = [key for key, pair_value in values.items() if pair_value is None]
-    if missing:
-        raise KeyError(
-            f"Pair config must define {PAIR_KEYS} or use a scalar value. "
-            f"Missing: {missing}"
-        )
-    return values
-
-
-def _index_config(value: Any, index: int, name: str) -> Any:
-    if isinstance(value, (list, tuple, np.ndarray)):
-        return value[index]
-    if isinstance(value, dict):
-        if index in value:
-            return value[index]
-        if str(index) in value:
-            return value[str(index)]
-    raise KeyError(f"{name} does not define index {index}.")
-
-
 def _synapse_post_equations(cfg: dict) -> str:
     synapse_model = SYNAPSE_MODELS[cfg["synapse_model"]]
     return synapse_model.get("post_eqs", synapse_model["eqs"])
-
 
 def _compose_neuron_equations(neuron_eqs: str, synapse_eqs: str) -> str:
     """Insert synaptic state equations before dv/dt."""
@@ -247,9 +212,13 @@ def _init_group_state(
     group.tau_d = cfg["tau_d"] * ms
 
     group.bias = cfg["bias"]
-    group.v_thr = cfg["v_thr"]
-    group.v_reset = cfg["v_reset"]
-    group.v = cfg["v_reset"]
+    v_thr_exc = cfg.get("v_thr_exc", cfg.get("v_thr", -40.0))
+    v_thr_inh = cfg.get("v_thr_inh", cfg.get("v_thr", -40.0))
+    v_reset_exc = cfg.get("v_reset_exc", cfg.get("v_reset", -65.0))
+    v_reset_inh = cfg.get("v_reset_inh", cfg.get("v_reset", -65.0))
+    group.v_thr = np.where(typ == 1, v_thr_exc, v_thr_inh)
+    group.v_reset = np.where(typ == 1, v_reset_exc, v_reset_inh)
+    group.v = group.v_reset
 
     if set_position:
         pos = rng.uniform(0.0, 1.0, size=(N, 3))

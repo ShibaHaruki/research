@@ -500,6 +500,22 @@ def evaluate_candidate(
     metrics["spike_ratio"] = float(
         metrics["mean_total_spikes_per_trial"] / float(args.κ)
     )
+    alpha = float(getattr(args, "\u03b1"))
+    beta = float(getattr(args, "\u03b2"))
+    gamma = float(getattr(args, "\u03b3"))
+    delta = float(getattr(args, "\u03b4"))
+    epsilon = float(getattr(args, "\u03b5"))
+    accuracy_value = float(metrics[f"{args.metric}_mean"])
+    accuracy_variance = float(metrics[f"{args.metric}_variance"])
+    metrics["objective_accuracy_contribution"] = -alpha * accuracy_value
+    metrics["objective_variance_contribution"] = beta * accuracy_variance
+    metrics["objective_spike_contribution"] = gamma * float(metrics["spike_ratio"])
+    metrics["objective_silent_contribution"] = delta * float(
+        metrics["silent_neuron_fraction"]
+    )
+    metrics["objective_fisher_contribution"] = -epsilon * float(
+        metrics.get("fisher_ratio_DR_mean", 0.0)
+    )
     objective = _score(
         metrics,
         metric=str(args.metric),
@@ -714,7 +730,12 @@ def run_one_cma_start(
             f"var8={row.get('accuracy8_overall_variance')} "
             f"spikes={row.get('mean_total_spikes_per_trial')} "
             f"silent={row.get('silent_neuron_fraction')} "
-            f"DR={row.get('fisher_ratio_DR_mean')}"
+            f"DR={row.get('fisher_ratio_DR_mean')} "
+            f"weighted(acc8={metrics.get('objective_accuracy_contribution')}, "
+            f"var8={metrics.get('objective_variance_contribution')}, "
+            f"spikes={metrics.get('objective_spike_contribution')}, "
+            f"silent={metrics.get('objective_silent_contribution')}, "
+            f"DR={metrics.get('objective_fisher_contribution')})"
         )
 
     def evaluate_population(generation: int, arx: np.ndarray) -> list[dict]:

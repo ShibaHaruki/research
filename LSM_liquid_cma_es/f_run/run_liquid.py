@@ -394,14 +394,6 @@ def save_first_sample_debug(
             ),
             start_time=debug_start_time,
             duration_ms=duration_ms,
-            spike_monitor=objects["M_liq_debug"][layer_index],
-            spike_start_index=(
-                spike_starts[layer_index]
-                if layer_index < len(spike_starts)
-                else None
-            ),
-            spike_time=debug_start_time,
-            spike_y=_group_scalar(objects["G_liq"][layer_index], "v_thr"),
         )
 
     return None
