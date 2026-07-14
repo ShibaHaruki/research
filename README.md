@@ -7,5 +7,5 @@ git add .
 # コミット
 git commit -m ""
 
-# GitHubのmainブランチへ送信
+# GitHubのmainブランチへpush
 git push origin main

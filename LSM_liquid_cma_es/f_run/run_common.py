@@ -192,10 +192,8 @@ def reset_dynamic_state(objects: dict, net_cfg: dict):
         group.I_RI = 0
         group.I_SI = 0
         group.I_USI = 0
-        group.I_exc = group.I_exc
-        group.I_inh = group.I_inh
-        group.H_exc = group.H_exc
-        group.H_inh = group.H_inh
+        group.I_syn = group.I_syn
+        group.H_syn = group.H_syn
 
     for synapses in objects.get("S_all", []):
         for var_name in (

@@ -116,6 +116,76 @@ def make_liquid_output_dir(cfg: dict, net_cfg: dict) -> Path:
     return make_run_output_dir(LIQUID_RESULT_DIR, cfg, net_cfg, include_output=False)
 
 
+class _CombinedSpikeMonitor:
+    """Expose two E/I SpikeMonitors as one legacy-compatible monitor."""
+
+    def __init__(self, exc_monitor, inh_monitor, n_exc: int):
+        self.exc = exc_monitor
+        self.inh = inh_monitor
+        self.n_exc = int(n_exc)
+
+    @property
+    def active(self):
+        return self.exc.active
+
+    @active.setter
+    def active(self, value):
+        self.exc.active = value
+        self.inh.active = value
+
+    def _order(self):
+        t_exc = np.asarray(self.exc.t / ms)
+        t_inh = np.asarray(self.inh.t / ms)
+        return np.argsort(np.concatenate([t_exc, t_inh]), kind="stable")
+
+    @property
+    def t(self):
+        t_exc = np.asarray(self.exc.t / ms)
+        t_inh = np.asarray(self.inh.t / ms)
+        values = np.concatenate([t_exc, t_inh])[self._order()]
+        return values * ms
+
+    @property
+    def i(self):
+        i_exc = np.asarray(self.exc.i, dtype=int)
+        i_inh = self.n_exc + np.asarray(self.inh.i, dtype=int)
+        return np.concatenate([i_exc, i_inh])[self._order()]
+
+    def __len__(self):
+        return len(self.exc.t) + len(self.inh.t)
+
+
+class _CombinedStateMonitor:
+    """Expose E/I StateMonitors in the original E-first neuron order."""
+
+    def __init__(self, exc_monitor, inh_monitor):
+        self.exc = exc_monitor
+        self.inh = inh_monitor
+
+    @property
+    def active(self):
+        return self.exc.active
+
+    @active.setter
+    def active(self, value):
+        self.exc.active = value
+        self.inh.active = value
+
+    @property
+    def t(self):
+        return self.exc.t
+
+    @property
+    def v(self):
+        return np.concatenate(
+            [np.asarray(self.exc.v), np.asarray(self.inh.v)], axis=0
+        )
+
+    def resize(self, n):
+        self.exc.resize(n)
+        self.inh.resize(n)
+
+
 def make_liquid_network(net_cfg: dict, N_in: int, rng: np.random.Generator, run_cfg: dict):
     # リキッド単体ネットワークを作る。内部状態保存用のモニタも用意する。
     input_ta0 = TimedArray(np.zeros((2, N_in)), dt=float(net_cfg["dt_ms"]) * ms)
@@ -129,44 +199,54 @@ def make_liquid_network(net_cfg: dict, N_in: int, rng: np.random.Generator, run_
     n_voltage = int(run_cfg.get("DEBUG_VOLTAGE_NEURONS", 10))
     voltage_dt_ms = float(run_cfg.get("DEBUG_VOLTAGE_DT_MS", 1.0))
 
-    M_liq_debug = [
-        SpikeMonitor(group, name=f"M_liq_debug_L{layer_index + 1}")
-        for layer_index, group in enumerate(G_liq)
-    ]
-    V_liq_indices = [
-        select_record_indices(group, n_voltage, rng)
-        for group in G_liq
-    ]
-    V_liq = [
-        StateMonitor(
-            group,
-            "v",
-            record=V_liq_indices[layer_index],
-            dt=voltage_dt_ms * ms,
-            name=f"V_liq_L{layer_index + 1}",
-        )
-        for layer_index, group in enumerate(G_liq)
-    ]
+    M_liq_debug = []
+    V_liq_indices = []
+    V_liq = []
     internal_state_dt_ms = float(run_cfg.get("INTERNAL_STATE_DT_MS", 1.0))
-    V_liq_internal = [
-        StateMonitor(
-            group,
-            "v",
-            record=True,
-            dt=internal_state_dt_ms * ms,
-            name=f"V_liq_internal_L{layer_index + 1}",
+    V_liq_internal = []
+    monitor_objects = []
+    for layer_index, layer in enumerate(G_liq):
+        m_exc = SpikeMonitor(layer.exc, name=f"M_liq_debug_E_L{layer_index + 1}")
+        m_inh = SpikeMonitor(layer.inh, name=f"M_liq_debug_I_L{layer_index + 1}")
+        M_liq_debug.append(_CombinedSpikeMonitor(m_exc, m_inh, len(layer.exc)))
+        monitor_objects.extend([m_exc, m_inh])
+
+        indices = np.asarray(select_record_indices(layer, n_voltage, rng), dtype=int)
+        V_liq_indices.append(indices)
+        n_exc = len(layer.exc)
+        exc_indices = indices[indices < n_exc]
+        inh_indices = indices[indices >= n_exc] - n_exc
+        v_exc = StateMonitor(
+            layer.exc, "v", record=exc_indices, dt=voltage_dt_ms * ms,
+            name=f"V_liq_E_L{layer_index + 1}",
         )
-        for layer_index, group in enumerate(G_liq)
-    ]
+        v_inh = StateMonitor(
+            layer.inh, "v", record=inh_indices, dt=voltage_dt_ms * ms,
+            name=f"V_liq_I_L{layer_index + 1}",
+        )
+        V_liq.append(_CombinedStateMonitor(v_exc, v_inh))
+        monitor_objects.extend([v_exc, v_inh])
+
+        v_internal_exc = StateMonitor(
+            layer.exc, "v", record=True, dt=internal_state_dt_ms * ms,
+            name=f"V_liq_internal_E_L{layer_index + 1}",
+        )
+        v_internal_inh = StateMonitor(
+            layer.inh, "v", record=True, dt=internal_state_dt_ms * ms,
+            name=f"V_liq_internal_I_L{layer_index + 1}",
+        )
+        V_liq_internal.append(_CombinedStateMonitor(v_internal_exc, v_internal_inh))
+        monitor_objects.extend([v_internal_exc, v_internal_inh])
     for monitor in M_liq_debug + V_liq + V_liq_internal:
         monitor.active = False
 
     net = Network()
     net.add(G_in)
     net.add(*G_poisson)
-    net.add(*G_liq)
+    for layer in G_liq:
+        net.add(layer.exc, layer.inh)
     net.add(*(S_in + S_poisson + S_intra))
-    net.add(*(M_liq_debug + V_liq + V_liq_internal))
+    net.add(*monitor_objects)
 
     return {
         "net": net,

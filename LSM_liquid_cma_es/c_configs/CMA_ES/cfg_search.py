@@ -1,7 +1,8 @@
 """Search space and objective defaults for the liquid CMA-ES search."""
 
 PARAMS = [
-    {"name": "n_liq", "kind": "int_log10", "initial": 1000, "low": 1, "high": 200},
+    # Separate E/I Brian2 groups require at least one neuron in each group.
+    {"name": "n_liq", "kind": "int_log10", "initial": 1000, "low": 5, "high": 200},
 
     {"name": "r_inh_liq", "kind": "logit", "initial": 0.20, "low": 0.2, "high": 0.50},
 

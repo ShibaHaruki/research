@@ -59,17 +59,28 @@ def neuron_model(
 
 NEURON_MODELS: dict[str, dict] = {}
 
-LIF_MODEL = register_model(
-    NEURON_MODELS,
-    "LIF",
-    neuron_model(
+def _make_lif_model() -> dict:
+    return neuron_model(
         eqs=COMMON_NEURON_MODEL_PARAMETERS + """
-            dv/dt = (-v + bias + I_in - I_inh + I_exc) / tau_m : 1 (unless refractory)
+            dv/dt = (-v + bias + I_in + I_syn) / tau_m : 1 (unless refractory)
             """,
         threshold="v >= v_thr",
         reset="v = v_reset",
         refractory="timestep(t - lastspike, dt) <= timestep(t_ref, dt)",
-    ),
+    )
+
+# The E/I groups use separate Brian2 model registrations. Their parameters
+# are assigned independently during network construction.
+LIF_E_MODEL = register_model(
+    NEURON_MODELS,
+    "LIF_E",
+    _make_lif_model(),
+    REQUIRED_NEURON_KEYS,
+)
+LIF_I_MODEL = register_model(
+    NEURON_MODELS,
+    "LIF_I",
+    _make_lif_model(),
     REQUIRED_NEURON_KEYS,
 )
 

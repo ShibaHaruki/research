@@ -102,6 +102,55 @@ def _input_current_name(filter_name: str) -> str:
 # ---------------------------------------------------------------------------
 # 入力層、リキッド層を Brian2 の NeuronGroup として作る。
 # 興奮/抑制ニューロンの割り当て、時定数、不応期、初期膜電位もここで決める。
+class LiquidLayer:
+    """Compatibility view that concatenates an E/I layer for analysis."""
+
+    _array_names = {
+        "typ", "v", "v_thr", "v_reset", "tau_m", "t_ref",
+        "x", "y", "z", "I_merkel", "I_meissner", "I_RI", "I_SI",
+        "I_USI", "I_syn", "H_syn",
+    }
+
+    def __init__(self, exc: NeuronGroup, inh: NeuronGroup):
+        object.__setattr__(self, "exc", exc)
+        object.__setattr__(self, "inh", inh)
+
+    def __len__(self):
+        return len(self.exc) + len(self.inh)
+
+    def _split_value(self, value):
+        n_exc = len(self.exc)
+        if np.isscalar(value):
+            return value, value
+        if hasattr(value, "unit"):
+            return value[:n_exc], value[n_exc:]
+        array = np.asarray(value)
+        return array[:n_exc], array[n_exc:]
+
+    def __getattr__(self, name):
+        if name in self._array_names:
+            if name == "H_syn":
+                return np.concatenate(
+                    [getattr(self.exc, name), getattr(self.inh, name)]
+                )
+            return np.concatenate(
+                [np.asarray(getattr(self.exc, name)), np.asarray(getattr(self.inh, name))]
+            )
+        raise AttributeError(name)
+
+    def __setattr__(self, name, value):
+        if name in self._array_names and "exc" in self.__dict__:
+            exc_value, inh_value = self._split_value(value)
+            if name == "H_syn" and not hasattr(exc_value, "unit"):
+                unit = getattr(self.exc, name).unit
+                exc_value = exc_value * unit
+                inh_value = inh_value * unit
+            setattr(self.exc, name, exc_value)
+            setattr(self.inh, name, inh_value)
+            return
+        object.__setattr__(self, name, value)
+
+
 def make_ei_arrays(
     N: int,
     r_inh: float,
@@ -183,17 +232,23 @@ def _init_group_state(
     r_inh: float,
     neuron_model: dict,
     set_position: bool = False,
+    typ_value: int | None = None,
 ) -> None:
     N = len(group)
-    typ, tau_m, t_ref = make_ei_arrays(
-        N=N,
-        r_inh=r_inh,
-        rng=rng,
-        tau_exc=cfg["tau_exc"],
-        tau_inh=cfg["tau_inh"],
-        ref_exc=cfg["ref_exc"],
-        ref_inh=cfg["ref_inh"],
-    )
+    if typ_value is None:
+        typ, tau_m, t_ref = make_ei_arrays(
+            N=N,
+            r_inh=r_inh,
+            rng=rng,
+            tau_exc=cfg["tau_exc"],
+            tau_inh=cfg["tau_inh"],
+            ref_exc=cfg["ref_exc"],
+            ref_inh=cfg["ref_inh"],
+        )
+    else:
+        typ = np.full(N, int(typ_value), dtype=np.int32)
+        tau_m = np.full(N, cfg["tau_exc"] if typ_value == 1 else cfg["tau_inh"])
+        t_ref = np.full(N, cfg["ref_exc"] if typ_value == 1 else cfg["ref_inh"])
 
     group.typ = typ
     group.tau_m = tau_m * ms
@@ -204,10 +259,8 @@ def _init_group_state(
     group.I_RI = 0
     group.I_SI = 0
     group.I_USI = 0
-    group.I_exc = 0
-    group.I_inh = 0
-    group.H_exc = 0
-    group.H_inh = 0
+    group.I_syn = 0
+    group.H_syn = 0
     group.tau_r = cfg["tau_r"] * ms
     group.tau_d = cfg["tau_d"] * ms
 
@@ -228,26 +281,57 @@ def _init_group_state(
 
 
 def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
-    neuron_model = NEURON_MODELS[cfg["neuron_model"]]
-    eqs = _compose_neuron_equations(neuron_model["eqs"], _synapse_post_equations(cfg))
+    neuron_model_e = NEURON_MODELS["LIF_E"]
+    neuron_model_i = NEURON_MODELS["LIF_I"]
+    eqs = _compose_neuron_equations(
+        neuron_model_e["eqs"], _synapse_post_equations(cfg)
+    )
 
     groups = []
     for layer_index, N in enumerate(_layer_sizes(cfg, "N_liq")):
-        group = _create_spiking_group(
-            N=N,
+        if N < 2:
+            raise ValueError(
+                "N_liq must be at least 2 when excitatory and inhibitory "
+                "neurons use separate Brian2 NeuronGroups."
+            )
+        r_inh_layer = _layer_float(cfg["r_inh_liq"], layer_index)
+        n_inh = int(np.round(r_inh_layer * N))
+        n_inh = min(max(n_inh, 1), N - 1)
+        n_exc = N - n_inh
+        group_exc = _create_spiking_group(
+            N=n_exc,
             eqs=eqs,
-            neuron_model=neuron_model,
-            name=f"{name_prefix}{layer_index + 1}",
+            neuron_model=neuron_model_e,
+            name=f"{name_prefix}_E_L{layer_index + 1}",
         )
         _init_group_state(
-            group=group,
+            group=group_exc,
             cfg=cfg,
             rng=rng,
-            r_inh=_layer_float(cfg["r_inh_liq"], layer_index),
-            neuron_model=neuron_model,
-            set_position=True,
+            r_inh=0.0,
+            neuron_model=neuron_model_e,
+            set_position=False,
+            typ_value=1,
         )
-        groups.append(group)
+        group_inh = _create_spiking_group(
+            N=n_inh,
+            eqs=eqs,
+            neuron_model=neuron_model_i,
+            name=f"{name_prefix}_I_L{layer_index + 1}",
+        )
+        _init_group_state(
+            group=group_inh,
+            cfg=cfg,
+            rng=rng,
+            r_inh=1.0,
+            neuron_model=neuron_model_i,
+            set_position=False,
+            typ_value=-1,
+        )
+        positions = rng.uniform(0.0, 1.0, size=(N, 3))
+        group_exc.x, group_exc.y, group_exc.z = positions[:n_exc].T
+        group_inh.x, group_inh.y, group_inh.z = positions[n_exc:].T
+        groups.append(LiquidLayer(group_exc, group_inh))
 
     return groups
 
@@ -346,7 +430,7 @@ def make_in_to_liq_synapses(G_in, G_liq, rng, cfg, name_prefix="S"):
     }
     route = cfg["IN_ROUTE"]
 
-    syn_map: dict[tuple[int, str], tuple[Synapses, int]] = {}
+    syn_map: dict[tuple[int, str, str], Synapses] = {}
     meta: list[dict[str, Any]] = []
 
     for (ch, filter_name), info in route.items():
@@ -369,42 +453,34 @@ def make_in_to_liq_synapses(G_in, G_liq, rng, cfg, name_prefix="S"):
             layer_index = int(layer_index)
             p_E, p_I = _read_post_ei_values(layer_params, "p")
             scale_E, scale_I = _read_post_ei_values(layer_params, "scale")
-            key = (layer_index, current_name)
-
-            if key not in syn_map:
-                post = G_liq[layer_index]
-                syn_map[key] = (
-                    Synapses(
+            layer = G_liq[layer_index]
+            type_specs = (
+                ("E", layer.exc, p_E, scale_E),
+                ("I", layer.inh, p_I, scale_I),
+            )
+            idx_ranges = {}
+            for post_type, post, p, scale in type_specs:
+                key = (layer_index, current_name, post_type)
+                if key not in syn_map:
+                    syn_map[key] = Synapses(
                         G_in,
                         post,
                         model=f"w : 1\nI_{current_name}_post = w * I_pre : 1 (summed)\n",
                         method="euler",
                         namespace={},
-                        name=f"{name_prefix}_{current_name}_liq{layer_index + 1}",
-                    ),
-                    _post_type_counts(post),
-                )
-
-            synapses, (N_post_E, N_post_I) = syn_map[key]
-
-            type_specs = (
-                ("E", "typ_post==1", p_E, scale_E, N_post_E),
-                ("I", "typ_post==-1", p_I, scale_I, N_post_I),
-            )
-            idx_ranges = {}
-            for post_type, post_condition, p, scale, N_post in type_specs:
+                        name=f"{name_prefix}_{current_name}_{post_type}_liq{layer_index + 1}",
+                    )
+                synapses = syn_map[key]
                 start = len(synapses)
-                synapses.connect(condition=f"({condition}) and ({post_condition})", p=p)
+                synapses.connect(condition=condition, p=p)
                 stop = len(synapses)
-
                 if stop > start:
                     synapses.w[start:stop] = init_in_to_liq(
                         rng,
                         stop - start,
                         scale=scale,
-                        N_post=N_post,
+                        N_post=len(post),
                     )
-
                 idx_ranges[post_type] = (start, stop)
 
             meta.append(
@@ -414,12 +490,11 @@ def make_in_to_liq_synapses(G_in, G_liq, rng, cfg, name_prefix="S"):
                     "layer_index": layer_index,
                     "p": {"E": p_E, "I": p_I},
                     "scale": {"E": scale_E, "I": scale_I},
-                    "S": synapses,
                     "idx_range": idx_ranges,
                 }
             )
 
-    return [synapses for synapses, _ in syn_map.values()], meta
+    return list(syn_map.values()), meta
 
 
 def _poisson_input_config(cfg: dict) -> dict[str, Any]:
@@ -438,16 +513,16 @@ def make_poisson_to_liq_synapses(G_liq, rng, cfg: dict, name_prefix="S_poisson")
     p_E, p_I = _read_post_ei_values(noise_cfg, "p")
     scale_E, scale_I = _read_post_ei_values(noise_cfg, "scale")
     current = str(noise_cfg.get("current", "exc")).lower()
-    post_trace = "H_inh_post" if current in {"inh", "inhibitory", "i"} else "H_exc_post"
-    on_pre = f"{post_trace} += (w / (tau_r_post * tau_d_post)) / Hz"
+    on_pre = "H_syn_post += (w / (tau_r_post * tau_d_post)) / Hz"
+    current_sign = -1.0 if current in {"inh", "inhibitory", "i"} else 1.0
 
     groups = []
     synapse_list = []
     meta = []
 
-    for layer_index, post in enumerate(G_liq):
+    for layer_index, layer in enumerate(G_liq):
         if noise_cfg.get("N_ratio") is not None:
-            n_noise = int(round(len(post) * float(noise_cfg["N_ratio"])))
+            n_noise = int(round(len(layer) * float(noise_cfg["N_ratio"])))
         else:
             n_noise = int(noise_cfg.get("N", 100))
         if n_noise <= 0:
@@ -458,101 +533,119 @@ def make_poisson_to_liq_synapses(G_liq, rng, cfg: dict, name_prefix="S_poisson")
             rates=rate_hz * Hz,
             name=f"G_poisson_liq{layer_index + 1}",
         )
-        synapses = Synapses(
-            noise_group,
-            post,
-            model="w : 1",
-            on_pre=on_pre,
-            method="euler",
-            namespace={"Hz": Hz},
-            name=f"{name_prefix}_liq{layer_index + 1}",
-        )
-        start_E = len(synapses)
-        synapses.connect(condition="typ_post==1", p=p_E)
-        stop_E = len(synapses)
-        start_I = len(synapses)
-        synapses.connect(condition="typ_post==-1", p=p_I)
-        stop_I = len(synapses)
-
-        N_post_E, N_post_I = _post_type_counts(post)
-        if stop_E > start_E:
-            synapses.w[start_E:stop_E] = init_in_to_liq(
-                rng,
-                stop_E - start_E,
-                scale=scale_E,
-                N_post=N_post_E,
-            )
-        if stop_I > start_I:
-            synapses.w[start_I:stop_I] = init_in_to_liq(
-                rng,
-                stop_I - start_I,
-                scale=scale_I,
-                N_post=N_post_I,
-            )
-        synapses.delay = 0 * ms
-
         groups.append(noise_group)
-        synapse_list.append(synapses)
-        meta.append(
-            {
-                "layer_index": layer_index,
-                "N": n_noise,
-                "rate_hz": rate_hz,
-                "current": current,
-                "p": {"E": p_E, "I": p_I},
-                "scale": {"E": scale_E, "I": scale_I},
-                "S": synapses,
-                "G": noise_group,
-            }
-        )
+        for post_type, post, p, scale in (
+            ("E", layer.exc, p_E, scale_E),
+            ("I", layer.inh, p_I, scale_I),
+        ):
+            synapses = Synapses(
+                noise_group,
+                post,
+                model="w : 1",
+                on_pre=on_pre,
+                method="euler",
+                namespace={"Hz": Hz},
+                name=f"{name_prefix}_{post_type}_liq{layer_index + 1}",
+            )
+            synapses.connect(p=p)
+            if len(synapses):
+                synapses.w = init_in_to_liq(
+                    rng,
+                    len(synapses),
+                    scale=current_sign * scale,
+                    N_post=len(post),
+                )
+            synapses.delay = 0 * ms
+            synapse_list.append(synapses)
+            meta.append(
+                {
+                    "layer_index": layer_index,
+                    "N": n_noise,
+                    "rate_hz": rate_hz,
+                    "current": current,
+                    "post_type": post_type,
+                    "p": p,
+                    "scale": scale,
+                    "S": synapses,
+                    "G": noise_group,
+                }
+            )
 
     return groups, synapse_list, meta
 
 
 def make_liq_intra_synapses(G_liq, rng, cfg: dict, name_prefix="S_liq_intra_"):
-    synE = SYNAPSE_MODELS[cfg["synapse_model"]]["liq_exc"]
-    synI = SYNAPSE_MODELS[cfg["synapse_model"]]["liq_inh"]
-    connect_fn = get_connection("liq_intra", cfg.get("liq_intra_connection", "random"))
+    """Create four explicit E/I recurrent connection populations per layer."""
+    syn_model = SYNAPSE_MODELS[cfg["synapse_model"]]["synapse"]
+    connection_name = cfg.get("liq_intra_connection", "random")
     gain_pairs = cfg["liq_intra_gain_pairs"]
+    p_pairs = cfg.get("p_liq_intra_pairs")
+    if p_pairs is None:
+        p_common = cfg.get("p_liq_intra", cfg.get("p_liq", 0.1))
+        p_pairs = {key: p_common for key in PAIR_KEYS}
 
     synapse_list = []
     meta = []
 
-    for layer_index, group in enumerate(G_liq):
-        N_post_E, N_post_I = _post_type_counts(group)
+    for layer_index, layer in enumerate(G_liq):
         gEE, gEI, gIE, gII = _pair_values(gain_pairs, layer_index)
-
-        sE = _make_synapses(
-            group,
-            group,
-            synE,
-            name=f"{name_prefix}E_L{layer_index + 1}",
-            cfg=cfg,
+        pEE, pEI, pIE, pII = _pair_values(p_pairs, layer_index)
+        lam = float(_layer_float(cfg.get("lam", 1.0), layer_index))
+        specs = (
+            ("EE", layer.exc, layer.exc, pEE, gEE, 1.0),
+            ("EI", layer.exc, layer.inh, pEI, gEI, 1.0),
+            ("IE", layer.inh, layer.exc, pIE, gIE, -1.0),
+            ("II", layer.inh, layer.inh, pII, gII, -1.0),
         )
-        connect_fn(sE, group, cfg, layer_index, rng, pairs=("EE", "EI"))
-        idx_EE, idx_EI = _indices_by_post_type(sE)
-        _set_pair_weights(sE, synE["w_attr"], idx_EE, idx_EI, gEE, gEI, N_post_E, N_post_I, rng, init_liq_intra)
-        sE.delay = 0 * ms
+        layer_synapses = {}
+        for pair, pre, post, probability, gain, sign in specs:
+            s = _make_synapses(
+                pre,
+                post,
+                syn_model,
+                name=f"{name_prefix}{pair}_L{layer_index + 1}",
+                cfg=cfg,
+            )
+            if connection_name == "random":
+                condition = "i!=j" if pre is post else None
+                if condition is None:
+                    s.connect(p=probability)
+                else:
+                    s.connect(condition=condition, p=probability)
+            elif connection_name == "distance":
+                condition = "i!=j" if pre is post else None
+                dist = "sqrt((x_pre-x_post)**2 + (y_pre-y_post)**2 + (z_pre-z_post)**2)"
+                probability_expr = f"{probability}*exp(-({dist})/{lam})"
+                if condition is None:
+                    s.connect(p=probability_expr)
+                else:
+                    s.connect(condition=condition, p=probability_expr)
+            else:
+                raise KeyError(
+                    f"Unknown connection 'liq_intra/{connection_name}'. "
+                    "Available: random, distance"
+                )
+            if len(s):
+                setattr(
+                    s,
+                    syn_model["w_attr"],
+                    init_liq_intra(
+                        rng,
+                        len(s),
+                        gain=sign * gain,
+                        N_post=len(post),
+                    ),
+                )
+            s.delay = 0 * ms
+            layer_synapses[pair] = s
+            synapse_list.append(s)
 
-        sI = _make_synapses(
-            group,
-            group,
-            synI,
-            name=f"{name_prefix}I_L{layer_index + 1}",
-            cfg=cfg,
-        )
-        connect_fn(sI, group, cfg, layer_index, rng, pairs=("IE", "II"))
-        idx_IE, idx_II = _indices_by_post_type(sI)
-        _set_pair_weights(sI, synI["w_attr"], idx_IE, idx_II, gIE, gII, N_post_E, N_post_I, rng, init_liq_intra)
-        sI.delay = 0 * ms
-
-        synapse_list.extend([sE, sI])
         meta.append(
             {
                 "layer_index": layer_index,
-                "S_exc": sE,
-                "S_inh": sI,
-                "idx": {"EE": idx_EE, "EI": idx_EI, "IE": idx_IE, "II": idx_II},
+                "S_exc": layer_synapses["EE"],
+                "S_inh": layer_synapses["IE"],
+                "S_pairs": layer_synapses,
             }
         )
 
