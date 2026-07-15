@@ -71,7 +71,18 @@ def connect_intra_random(
     layer_index: int,
     rng: np.random.Generator,
     pairs=PAIR_KEYS,
+    pre_group=None,
+    post_group=None,
+    probability=None,
 ):
+    if pre_group is not None and post_group is not None:
+        condition = "i!=j" if pre_group is post_group else None
+        if condition is None:
+            s.connect(p=probability)
+        else:
+            s.connect(condition=condition, p=probability)
+        return
+
     pEE, pEI, pIE, pII = _read_intra_p(cfg, layer_index)
     p_map = {"EE": pEE, "EI": pEI, "IE": pIE, "II": pII}
 
@@ -87,7 +98,21 @@ def connect_intra_distance(
     layer_index: int,
     rng: np.random.Generator,
     pairs=PAIR_KEYS,
+    pre_group=None,
+    post_group=None,
+    probability=None,
 ):
+    if pre_group is not None and post_group is not None:
+        lam = float(layer_val(cfg.get("lam", 1.0), layer_index))
+        dist = "sqrt((x_pre-x_post)**2 + (y_pre-y_post)**2 + (z_pre-z_post)**2)"
+        probability_expr = f"{probability}*exp(-({dist})/{lam})"
+        condition = "i!=j" if pre_group is post_group else None
+        if condition is None:
+            s.connect(p=probability_expr)
+        else:
+            s.connect(condition=condition, p=probability_expr)
+        return
+
     lam = float(layer_val(cfg.get("lam", 1.0), layer_index))
     dist = "sqrt((x_pre-x_post)**2 + (y_pre-y_post)**2 + (z_pre-z_post)**2)"
 

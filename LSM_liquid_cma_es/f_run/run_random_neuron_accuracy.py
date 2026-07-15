@@ -251,22 +251,38 @@ def eval_10fold_like_eval_py(
     features: np.ndarray,
     rng: np.random.Generator,
     n_folds: int,
+    *,
+    test_size: float | None = None,
+    n_repeats: int = 1,
 ) -> tuple[np.ndarray, np.ndarray, float, float, float, float, int, list[float], list[float]]:
     n_sozai, n_sample, dim = features.shape
-    if n_sample < n_folds:
+    if test_size is None and n_sample < n_folds:
         raise ValueError(f"Need at least {n_folds} samples per class, but n_sample={n_sample}")
 
-    all_indices = np.arange(n_sample)
-    rng.shuffle(all_indices)
-    fold_indices = np.array_split(all_indices, n_folds)
+    if test_size is not None:
+        test_size = float(test_size)
+        if not 0.0 < test_size < 1.0:
+            raise ValueError("test_size must be between 0 and 1.")
+        if int(n_repeats) <= 0:
+            raise ValueError("n_repeats must be at least 1.")
+        n_test = max(1, min(n_sample - 1, int(np.ceil(n_sample * test_size))))
+        split_indices = []
+        for _ in range(int(n_repeats)):
+            shuffled = np.arange(n_sample)
+            rng.shuffle(shuffled)
+            split_indices.append(np.asarray(shuffled[:n_test], dtype=int))
+    else:
+        all_indices = np.arange(n_sample)
+        rng.shuffle(all_indices)
+        split_indices = [np.asarray(x, dtype=int) for x in np.array_split(all_indices, n_folds)]
 
     conf_8_total = np.zeros((n_sozai, n_sozai))
     conf_3_total = np.zeros((3, 3))
     acc_list8 = []
     acc_list3 = []
 
-    for fold in range(n_folds):
-        test_idx = np.array(fold_indices[fold])
+    for test_idx in split_indices:
+        all_indices = np.arange(n_sample)
         train_idx = np.setdiff1d(all_indices, test_idx)
 
         models = [
@@ -328,6 +344,8 @@ def evaluate_random_neuron_accuracy(
     n_neurons: int = 100,
     n_repeats: int = 20,
     n_folds: int = 10,
+    test_size: float | None = None,
+    hold: int = 1,
     seed_value: int = 0,
     t_n_ms: float = 25.0,
     max_samples_per_class: int | None = None,
@@ -368,15 +386,17 @@ def evaluate_random_neuron_accuracy(
             f"({t_n_ms:g} ms at bin_ms={bin_ms:g} ms)."
         )
     effective_folds = int(n_folds)
-    if n_sample < effective_folds:
+    if test_size is None and n_sample < effective_folds:
         raise ValueError(
             f"eval.py style {effective_folds}-fold needs at least {effective_folds} "
             f"samples per class, but n_sample={n_sample}."
         )
     if n_sozai != 8:
         raise ValueError(f"eval.py style 3-class aggregation expects 8 classes, got {n_sozai}.")
-    if effective_folds < 2:
+    if test_size is None and effective_folds < 2:
         raise ValueError("Need at least 2 samples per class for k-fold accuracy.")
+    if test_size is not None and int(hold) <= 0:
+        raise ValueError("hold must be at least 1.")
 
     out_dir = Path(out_dir) if out_dir is not None else Path(internal_state_dir).parent / "random_neuron_accuracy"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -405,7 +425,13 @@ def evaluate_random_neuron_accuracy(
             total_samples,
             acc_list8,
             acc_list3,
-        ) = eval_10fold_like_eval_py(features, repeat_rng, effective_folds)
+        ) = eval_10fold_like_eval_py(
+            features,
+            repeat_rng,
+            effective_folds,
+            test_size=test_size,
+            n_repeats=int(hold),
+        )
 
         conf8_fp = out_dir / f"conf_8cls_repeat{repeat_index:03d}.csv"
         conf3_fp = out_dir / f"conf_3cls_repeat{repeat_index:03d}.csv"
@@ -434,14 +460,27 @@ def evaluate_random_neuron_accuracy(
     summary_df = pd.DataFrame(rows)
     summary_csv = out_dir / "random_neuron_accuracy_summary.csv"
     summary_df.to_csv(summary_csv, index=False)
+    holdout_test_count = (
+        max(1, min(n_sample - 1, int(np.ceil(n_sample * float(test_size)))))
+        if test_size is not None
+        else None
+    )
 
     payload = {
         "internal_state_dir": str(Path(internal_state_dir)),
         "out_dir": str(out_dir),
-        "classifier": "eval.py Mahalanobis 10-fold",
+        "classifier": (
+            "Mahalanobis repeated holdout"
+            if test_size is not None
+            else "eval.py Mahalanobis 10-fold"
+        ),
         "feature_extraction": "eval.py rate features: reshape by T_n, sum over interval, divide by T_n/1000",
         "n_classes": int(n_sozai),
         "n_sample_per_class": int(n_sample),
+        "n_test_per_class": holdout_test_count,
+        "n_train_per_class": (
+            None if holdout_test_count is None else int(n_sample - holdout_test_count)
+        ),
         "n_time_bins": int(n_time),
         "bin_ms": float(bin_ms),
         "T_n_ms": float(t_n_ms),
@@ -452,6 +491,12 @@ def evaluate_random_neuron_accuracy(
         "n_selected_neurons": int(n_select),
         "n_repeats": int(n_repeats),
         "n_folds": int(effective_folds),
+        "evaluation_method": (
+            "repeated_holdout" if test_size is not None else "k_fold"
+        ),
+        "test_size": None if test_size is None else float(test_size),
+        "train_size": None if test_size is None else float(1.0 - test_size),
+        "hold": int(hold),
         "seed": int(seed_value),
         "window_start_ms": window_start_ms,
         "window_end_ms": window_end_ms,
@@ -489,6 +534,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--neurons", type=int, default=DEFAULT_SELECTED_NEURONS)
     parser.add_argument("--repeats", type=int, default=20)
     parser.add_argument("--folds", type=int, default=10)
+    parser.add_argument(
+        "--test-size",
+        type=float,
+        default=None,
+        help="Use repeated holdout with this test fraction instead of k-fold.",
+    )
+    parser.add_argument("--hold", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--t-n-ms",
@@ -526,6 +578,8 @@ def main() -> int:
         n_neurons=args.neurons,
         n_repeats=args.repeats,
         n_folds=args.folds,
+        test_size=args.test_size,
+        hold=args.hold,
         seed_value=args.seed,
         t_n_ms=args.t_n if args.t_n is not None else args.t_n_ms,
         max_samples_per_class=args.max_samples_per_class,

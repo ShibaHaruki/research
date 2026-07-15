@@ -446,6 +446,7 @@ def save_first_sample_debug(
             ),
             start_time=debug_start_time,
             duration_ms=duration_ms,
+            n_exc=len(objects["G_liq"][layer_index].exc),
         )
 
     save_spike_count_plot(

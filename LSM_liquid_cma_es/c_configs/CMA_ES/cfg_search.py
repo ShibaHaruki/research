@@ -63,7 +63,7 @@ OBJECTIVE_DEFAULTS = {
     "α": 100.0,
     "β": 1.0,
     "γ": 1.0,
-    "δ": 10.0,
+    "δ": 20.0,
     "ε": 1.0,
     "κ": 2000.0,
 }
@@ -74,31 +74,48 @@ OBJECTIVE_DEFAULTS = {
 # + δ × 無活動ニューロン割合
 # − ε × Fisher比 
 
-SEARCH_DEFAULTS = {
-    # CMA-ES parameters
-    "generations": 10,
-    "population_size": 10,
-    "sigma0": 0.50, #ステップサイズ
+# CMA-ES本体のパラメータ
+CMA_ES_DEFAULTS = {
+    "generations": 10,                #世代数
+    "population_size": 10,            #個体数
+    "sigma0": 0.50,                   #ステップサイズ
+    "randomize_initial_center": True, #初期中心をランダム化
+}
 
-    "jobs": None,
-    "brian_codegen_target": "numpy",
-    "sigma0": 0.50,
+# 評価条件
+ACCURACY_DEFAULTS ={
+    "test_size": 0.20, #testの割合
+    "fold": 10,       #hold回数
+    "t_n_ms": 25.0,    #分割幅(ms)
+
+}
+
+SEARCH_OTHER_DEFAULTS = {
+    # 実行・並列計算
+    "brian_codegen_target": "numpy", # or cyhton
+
+    "search_name": "liquid_search001",
+
+    "share_filter_input_params_across_sensors": True,  
+    "search_input_filters": ["RI", "SI"], #["RI", "SI", "USI", "merkel", "meissner"]
+
     "seed": 0,
     "n_starts": 1,
     "start_spread": None,
+    "jobs": None,
     "start_jobs": 1,
+    
+    "internal_state_bin_ms": 1.0,
     "samples_per_class": 50,
     "neurons": 0,
+
+    # 評価条件
+     # 0 means all available neurons
     # At least one evaluation is required. Use neurons=0 to evaluate all
     # available neurons; repeats controls repeated random neuron selections.
     "repeats": 1,
-    "folds": 10,
-    "t_n_ms": 25.0,
-    "internal_state_bin_ms": 1.0,
-    "search_name": "liquid_accuracy_spikes_fisher",
-    "randomize_initial_center": True,
-    # One merkel/meissner/etc. parameter is applied to that filter on every sensor.
-    "share_filter_input_params_across_sensors": True,
-    # Set to None to fall back to automatic exclusion from IN_ROUTE p values.
-    "search_input_filters": ["RI", "SI"], #["RI", "SI", "USI", "merkel", "meissner"]
 }
+
+# Existing code imports SEARCH_DEFAULTS. Keep this flat compatibility view
+# while maintaining a clear separation above.
+SEARCH_DEFAULTS = {**CMA_ES_DEFAULTS, **SEARCH_OTHER_DEFAULTS,**ACCURACY_DEFAULTS}

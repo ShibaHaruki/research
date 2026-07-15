@@ -90,6 +90,7 @@ def save_spike_raster(
     end_index: int | None = None,
     start_time=None,
     duration_ms: float | None = None,
+    n_exc: int | None = None,
 ) -> None:
     # SpikeMonitor の時刻を試行内 0 ms 始まりに直し、ラスタープロットとして保存する。
     out_fp = Path(out_fp)
@@ -109,7 +110,24 @@ def save_spike_raster(
 
     plt.figure(figsize=(9, 4))
     if t_ms.size:
-        plt.scatter(t_ms, indices, s=3, alpha=0.75)
+        if n_exc is None:
+            plt.scatter(t_ms, indices, s=3, alpha=0.75)
+        else:
+            n_exc = int(n_exc)
+            exc_mask = indices < n_exc
+            inh_mask = ~exc_mask
+            if np.any(exc_mask):
+                plt.scatter(
+                    t_ms[exc_mask], indices[exc_mask], s=3, alpha=0.75,
+                    color="tab:blue", label="excitatory (E)",
+                )
+            if np.any(inh_mask):
+                plt.scatter(
+                    t_ms[inh_mask], indices[inh_mask], s=3, alpha=0.75,
+                    color="tab:orange", label="inhibitory (I)",
+                )
+            if np.any(exc_mask) or np.any(inh_mask):
+                plt.legend(loc="upper right")
     else:
         plt.text(
             0.5,

@@ -1,9 +1,8 @@
-"""設定辞書から入力層、リキッド層、シナプスを組み立てる中核処理。"""
+"""入力層、リキッド層、シナプスの組み立て"""
 
 # build_network.py
 from __future__ import annotations
 
-import re
 from numbers import Number
 from typing import Any
 
@@ -13,11 +12,10 @@ from brian2 import Hz, NeuronGroup, PoissonGroup, Synapses, TimedArray, ms
 from .models.connectivity_models import get_connection, layer_val
 from .models.model_utils import merge_namespace
 
-from .models.neuron_models import NEURON_MODELS
-from .models.synapse_models import SYNAPSE_MODELS
+from .models.neuron_models import NEURON_MODELS #ニューロンモデル呼び出し
+from .models.synapse_models import SYNAPSE_MODELS #シナプスモデル呼び出し
 
-from .weight_initialization import init_in_to_liq, init_liq_intra
-
+from .weight_initialization import init_in_to_liq, init_liq_intra #重みの初期化関数呼び出し
 
 PAIR_KEYS = ("EE", "EI", "IE", "II")
 
@@ -37,29 +35,19 @@ def _synapse_post_equations(cfg: dict) -> str:
     synapse_model = SYNAPSE_MODELS[cfg["synapse_model"]]
     return synapse_model.get("post_eqs", synapse_model["eqs"])
 
-def _compose_neuron_equations(neuron_eqs: str, synapse_eqs: str) -> str:
-    """Insert synaptic state equations before dv/dt."""
-    base_eqs = re.sub(r"^\s*I_exc\s*:\s*1\s*$", "", neuron_eqs, flags=re.MULTILINE)
-    base_eqs = re.sub(r"^\s*I_inh\s*:\s*1\s*$", "", base_eqs, flags=re.MULTILINE)
-
-    match = re.search(r"^\s*dv/dt\s*=", base_eqs, flags=re.MULTILINE)
-    if match is None:
-        return f"{base_eqs}\n{synapse_eqs}"
-    return f"{base_eqs[:match.start()]}\n{synapse_eqs}\n{base_eqs[match.start():]}"
-
-
+# 指定したLiquid層のEE・EI・IE・II設定値をまとめて取得する関数
 def _pair_values(pair_dict: dict[str, Any], layer_index: int) -> tuple[float, float, float, float]:
     return tuple(_layer_float(pair_dict[key], layer_index) for key in PAIR_KEYS)
 
-
+# 興奮性・抑制性の接続先ごとの結合確率や重みスケールを、設定辞書から読み取る関数
 def _read_post_ei_values(params: dict[str, Any], key: str) -> tuple[float, float]:
-    """Read values for post excitatory/inhibitory targets.
 
-    Supported forms:
+    """対応している記述形式:
     - {"p": 0.1}
     - {"p": {"E": 0.1, "I": 0.2}}
     - {"p_E": 0.1, "p_I": 0.2}
     """
+
     value = params.get(key)
     if isinstance(value, dict):
         e_value = value.get("E", value.get("exc"))
@@ -75,7 +63,7 @@ def _read_post_ei_values(params: dict[str, Any], key: str) -> tuple[float, float
         )
     return float(e_value), float(i_value)
 
-
+# シナプスモデルが必要とする外部パラメータを設定から読み出し、単位を付けてBrian2に渡す関数
 def _synapse_namespace(cfg: dict | None, syn_model: dict) -> dict[str, Any]:
     namespace = {}
     if cfg is None:
@@ -92,19 +80,16 @@ def _synapse_namespace(cfg: dict | None, syn_model: dict) -> dict[str, Any]:
         namespace[name] = value
     return namespace
 
-
-def _input_current_name(filter_name: str) -> str:
-    return str(filter_name).split("__", 1)[0]
-
-
 # ---------------------------------------------------------------------------
 # Neuron helpers
 # ---------------------------------------------------------------------------
 # 入力層、リキッド層を Brian2 の NeuronGroup として作る。
 # 興奮/抑制ニューロンの割り当て、時定数、不応期、初期膜電位もここで決める。
-class LiquidLayer:
-    """Compatibility view that concatenates an E/I layer for analysis."""
 
+#興奮性と抑制性の2つのNeuronGroupを、解析時に1つのLiquid層のように読み書きするための互換クラス
+class LiquidLayer:
+
+    #興奮性・抑制性グループを結合して扱う属性
     _array_names = {
         "typ", "v", "v_thr", "v_reset", "tau_m", "t_ref",
         "x", "y", "z", "I_merkel", "I_meissner", "I_RI", "I_SI",
@@ -116,7 +101,7 @@ class LiquidLayer:
         object.__setattr__(self, "inh", inh)
 
     def __len__(self):
-        return len(self.exc) + len(self.inh)
+        return len(self.exc) + len(self.inh) #興奮性と抑制性を合わせたLiquid層全体のニューロン数
 
     def _split_value(self, value):
         n_exc = len(self.exc)
@@ -150,7 +135,7 @@ class LiquidLayer:
             return
         object.__setattr__(self, name, value)
 
-
+# ニューロンを興奮性・抑制性に分類し、それぞれの膜時定数と不応期を設定する関数
 def make_ei_arrays(
     N: int,
     r_inh: float,
@@ -160,6 +145,7 @@ def make_ei_arrays(
     ref_exc: float,
     ref_inh: float,
 ):
+    
     neuron_array = np.ones(N, dtype=np.int32)
     N_inh = int(np.round(r_inh * N))
     inh_idx = rng.choice(N, size=N_inh, replace=False) if N_inh > 0 else np.array([], dtype=int)
@@ -167,16 +153,17 @@ def make_ei_arrays(
 
     tau_m = np.where(neuron_array == 1, tau_exc, tau_inh)
     t_ref = np.where(neuron_array == 1, ref_exc, ref_inh)
-    return neuron_array, tau_m, t_ref
+    return neuron_array, tau_m, t_ref 
 
-
+# 入力のNeuronGroupを作る関数。入力のTimedArrayも同時に作ることができる。
 def make_in_neuron_group(N_in=None, input_ta=None, cfg: dict | None = None, name="G_in"):
-    """Create the input group.
-
+   
+    """
     Supported call styles:
     - make_in_neuron_group(N_in, input_ta) -> G_in
     - make_in_neuron_group(cfg) -> (G_in, input_ta)
     """
+   
     if isinstance(N_in, dict) and input_ta is None and cfg is None:
         cfg = N_in
         N_in = None
@@ -283,9 +270,7 @@ def _init_group_state(
 def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
     neuron_model_e = NEURON_MODELS["LIF_E"]
     neuron_model_i = NEURON_MODELS["LIF_I"]
-    eqs = _compose_neuron_equations(
-        neuron_model_e["eqs"], _synapse_post_equations(cfg)
-    )
+    eqs = f"{neuron_model_e['eqs']}\n{_synapse_post_equations(cfg)}"
 
     groups = []
     for layer_index, N in enumerate(_layer_sizes(cfg, "N_liq")):
@@ -447,7 +432,7 @@ def make_in_to_liq_synapses(G_in, G_liq, rng, cfg, name_prefix="S"):
             )
         input_row = input_row_by_route[input_key]
         condition = f"(i=={input_row})"
-        current_name = _input_current_name(filter_name)
+        current_name = str(filter_name).split("__", 1)[0]
 
         for layer_index, layer_params in info["layers"].items():
             layer_index = int(layer_index)
@@ -577,7 +562,9 @@ def make_poisson_to_liq_synapses(G_liq, rng, cfg: dict, name_prefix="S_poisson")
 def make_liq_intra_synapses(G_liq, rng, cfg: dict, name_prefix="S_liq_intra_"):
     """Create four explicit E/I recurrent connection populations per layer."""
     syn_model = SYNAPSE_MODELS[cfg["synapse_model"]]["synapse"]
-    connection_name = cfg.get("liq_intra_connection", "random")
+    connect_fn = get_connection(
+        "liq_intra", cfg.get("liq_intra_connection", "random")
+    )
     gain_pairs = cfg["liq_intra_gain_pairs"]
     p_pairs = cfg.get("p_liq_intra_pairs")
     if p_pairs is None:
@@ -590,7 +577,6 @@ def make_liq_intra_synapses(G_liq, rng, cfg: dict, name_prefix="S_liq_intra_"):
     for layer_index, layer in enumerate(G_liq):
         gEE, gEI, gIE, gII = _pair_values(gain_pairs, layer_index)
         pEE, pEI, pIE, pII = _pair_values(p_pairs, layer_index)
-        lam = float(_layer_float(cfg.get("lam", 1.0), layer_index))
         specs = (
             ("EE", layer.exc, layer.exc, pEE, gEE, 1.0),
             ("EI", layer.exc, layer.inh, pEI, gEI, 1.0),
@@ -606,25 +592,17 @@ def make_liq_intra_synapses(G_liq, rng, cfg: dict, name_prefix="S_liq_intra_"):
                 name=f"{name_prefix}{pair}_L{layer_index + 1}",
                 cfg=cfg,
             )
-            if connection_name == "random":
-                condition = "i!=j" if pre is post else None
-                if condition is None:
-                    s.connect(p=probability)
-                else:
-                    s.connect(condition=condition, p=probability)
-            elif connection_name == "distance":
-                condition = "i!=j" if pre is post else None
-                dist = "sqrt((x_pre-x_post)**2 + (y_pre-y_post)**2 + (z_pre-z_post)**2)"
-                probability_expr = f"{probability}*exp(-({dist})/{lam})"
-                if condition is None:
-                    s.connect(p=probability_expr)
-                else:
-                    s.connect(condition=condition, p=probability_expr)
-            else:
-                raise KeyError(
-                    f"Unknown connection 'liq_intra/{connection_name}'. "
-                    "Available: random, distance"
-                )
+            connect_fn(
+                s,
+                post,
+                cfg,
+                layer_index,
+                rng,
+                pairs=(pair,),
+                pre_group=pre,
+                post_group=post,
+                probability=probability,
+            )
             if len(s):
                 setattr(
                     s,

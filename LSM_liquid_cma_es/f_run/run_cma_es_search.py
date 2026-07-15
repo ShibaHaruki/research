@@ -18,6 +18,7 @@ import argparse
 import csv
 import json
 import math
+import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
@@ -472,7 +473,8 @@ def evaluate_candidate(
         internal_state_dir,
         n_neurons=int(args.neurons),
         n_repeats=int(args.repeats),
-        n_folds=int(args.folds),
+        test_size=float(args.test_size),
+        hold=int(args.hold),
         seed_value=int(args.seed) + generation * 1000 + candidate,
         t_n_ms=float(args.t_n_ms),
         max_samples_per_class=int(args.samples_per_class),
@@ -611,7 +613,8 @@ def build_search_settings(args: argparse.Namespace) -> dict:
         "evaluation_neurons": "all" if int(args.neurons) <= 0 else int(args.neurons),
         "samples_per_class": int(args.samples_per_class),
         "repeats": int(args.repeats),
-        "folds": int(args.folds),
+        "test_size": float(args.test_size),
+        "hold": int(args.hold),
         "T_n_ms": float(args.t_n_ms),
         "brian_codegen_target": str(args.brian_codegen_target),
         "parameters": PARAMS,
@@ -852,7 +855,18 @@ def parse_args() -> argparse.Namespace:
         help="Number of liquid neurons for accuracy evaluation. Use 0 for all neurons.",
     )
     parser.add_argument("--repeats", type=int, default=SEARCH_DEFAULTS["repeats"])
-    parser.add_argument("--folds", type=int, default=SEARCH_DEFAULTS["folds"])
+    parser.add_argument(
+        "--test-size",
+        type=float,
+        default=SEARCH_DEFAULTS["test_size"],
+        help="Test fraction for repeated holdout evaluation (0 to 1).",
+    )
+    parser.add_argument(
+        "--hold",
+        type=int,
+        default=SEARCH_DEFAULTS["hold"],
+        help="Number of repeated holdout splits per neuron selection.",
+    )
     parser.add_argument("--t-n-ms", type=float, default=SEARCH_DEFAULTS["t_n_ms"])
     parser.add_argument(
         "--internal-state-bin-ms",
@@ -1022,6 +1036,32 @@ def main() -> int:
         if tracker is not None:
             tracker.log_remaining_candidates()
             tracker.finish(best)
+        progress_dirs = (
+            [search_dir]
+            if int(args.n_starts) == 1
+            else [
+                search_dir / f"start{start_index:03d}"
+                for start_index in range(1, int(args.n_starts) + 1)
+            ]
+        )
+        for progress_dir in progress_dirs:
+            progress_script = PROJECT_ROOT / "f_run" / "plot_cma_es_progress.py"
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(progress_script),
+                    "--search-dir",
+                    str(progress_dir),
+                ],
+                cwd=PROJECT_ROOT,
+                check=False,
+            )
+            if completed.returncode != 0:
+                print(
+                    f"[cma-progress] plot generation failed for {progress_dir} "
+                    f"(exit={completed.returncode})",
+                    file=sys.stderr,
+                )
         print(f"[cma] best start={best.get('start')} objective={best.get('objective')}")
         print(f"[cma] saved to {search_dir}")
         return 0
