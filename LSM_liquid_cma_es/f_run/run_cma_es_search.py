@@ -1,16 +1,6 @@
-"""CMA-ES search for liquid-only hyperparameters.
+"""CMA-ES search for liquid-only hyperparameters."""
 
-Objective:
-    minimize -alpha * accuracy
-             + beta * accuracy_variance
-             + gamma * total_spikes / kappa
-             + delta * silent_neuron_fraction
-             - epsilon * fisher_ratio_DR
 
-The liquid is not trained. Each candidate builds the liquid, saves internal
-states, then evaluates eval.py-style Mahalanobis classification from liquid
-neurons.
-"""
 
 from __future__ import annotations
 
@@ -138,7 +128,15 @@ def decode_value(raw: float, spec: dict):
     high = float(spec["high"])
     normalized = float(np.clip(raw, 0.0, 1.0))
     value = low + normalized * (high - low)
-    if spec["kind"] == "int_log10":
+    step_mode = spec.get("step", "linear")
+    if isinstance(step_mode, (int, float)):
+        numeric_step = float(step_mode)
+        if numeric_step <= 0:
+            raise ValueError(f"Parameter step must be positive: {spec['name']}")
+        value = low + round((value - low) / numeric_step) * numeric_step
+        value = float(np.clip(value, low, high))
+        return float(value)
+    if isinstance(step_mode, str) and step_mode.strip().lower() in {"int", "integer", "int_log10"}:
         return int(round(value))
     return float(value)
 
@@ -150,6 +148,30 @@ def initial_vector() -> np.ndarray:
 def random_initial_vector(rng: np.random.Generator) -> np.ndarray:
     """Sample a random point directly in the normalized [0, 1] space."""
     return rng.uniform(0.0, 1.0, size=len(PARAMS)).astype(float)
+
+
+def _neuron_limit(value: int | float | str) -> int | float | None:
+    if isinstance(value, str) and value.strip().lower() == "all":
+        return None
+    text = str(value).strip()
+    if text.endswith("%"):
+        ratio = float(text[:-1]) / 100.0
+        if not 0.0 < ratio <= 1.0:
+            raise ValueError("neuron percentage must be in the range (0, 100].")
+        return ratio
+    if isinstance(value, float) and not value.is_integer():
+        ratio = float(value)
+        if not 0.0 < ratio <= 1.0:
+            raise ValueError("neuron ratio must be in the range (0, 1].")
+        return ratio
+    if "." in text:
+        numeric = float(text)
+        if 0.0 < numeric <= 1.0:
+            return numeric
+    count = int(value)
+    if count < 1:
+        raise ValueError("neurons must be a positive integer, a ratio in (0, 1], a percentage, or 'all'.")
+    return count
 
 
 def decode_vector(x: np.ndarray) -> dict[str, float]:
@@ -176,11 +198,11 @@ def apply_liquid_params(cfg: dict, params: dict[str, float]) -> dict:
     net["r_inh_liq"] = float(params.get("r_inh_liq", net.get("r_inh_liq", 0.2)))
 
     lif_cfg = cfg["neuron_models"]["LIF"]
-    lif_cfg["tau_exc"] = params["lif_tau_exc"]
-    lif_cfg["tau_inh"] = params["lif_tau_inh"]
-    lif_cfg["ref_exc"] = params["lif_ref_exc"]
-    lif_cfg["ref_inh"] = params["lif_ref_inh"]
-    lif_cfg["bias"] = params["lif_bias"]
+    lif_cfg["tau_exc"] = params.get("lif_tau_exc", lif_cfg.get("tau_exc", 10.0))
+    lif_cfg["tau_inh"] = params.get("lif_tau_inh", lif_cfg.get("tau_inh", 10.0))
+    lif_cfg["ref_exc"] = params.get("lif_ref_exc", lif_cfg.get("ref_exc", 2.0))
+    lif_cfg["ref_inh"] = params.get("lif_ref_inh", lif_cfg.get("ref_inh", 2.0))
+    lif_cfg["bias"] = params.get("lif_bias", lif_cfg.get("bias", -65.0))
     if "lif_v_reset" in params:
         lif_cfg["v_reset"] = params["lif_v_reset"]
     if "lif_v_thr" in params:
@@ -402,16 +424,12 @@ def _score(
     γ: float,
     κ: float,
     δ: float,
-    ε: float,
 ) -> float:
     acc = float(metrics[f"{metric}_mean"])
     acc_std = float(metrics[f"{metric}_std"])
     acc_variance = acc_std * acc_std
     spikes = float(metrics["mean_total_spikes_per_trial"])
-    fisher = float(metrics.get("fisher_ratio_DR_mean", 0.0))
     silent_fraction = float(metrics.get("silent_neuron_fraction", 0.0))
-    if not math.isfinite(fisher):
-        fisher = 0.0
     if not math.isfinite(spikes):
         raise ValueError(f"mean_total_spikes_per_trial is not finite: {spikes}")
     if float(κ) <= 0:
@@ -421,7 +439,6 @@ def _score(
         + float(β) * acc_variance
         + float(γ) * (spikes / float(κ))
         + float(δ) * silent_fraction
-        - float(ε) * fisher
     )
 
 
@@ -438,6 +455,11 @@ def evaluate_candidate(
     candidate_dir.mkdir(parents=True, exist_ok=True)
 
     cfg = apply_liquid_params(build_cfg(), params)
+    # Keep every candidate's full liquid output below its CMA-ES directory.
+    # The candidate directory already identifies the experiment, so avoid an
+    # additional experiment-id level below the network/model directories.
+    cfg["run"]["LIQUID_RESULT_ROOT"] = str(candidate_dir.resolve())
+    cfg["run"]["INCLUDE_EXPERIMENT_DIR"] = False
     # Keep the decoded candidate alongside the effective network snapshot.
     # This makes it possible to compare the requested search values with the
     # post-normalization route values saved by run_liquid.
@@ -471,8 +493,8 @@ def evaluate_candidate(
     accuracy_dir = candidate_dir / "random_neuron_accuracy"
     metrics = evaluate_random_neuron_accuracy(
         internal_state_dir,
-        n_neurons=int(args.neurons),
-        n_repeats=int(args.repeats),
+        n_neurons=_neuron_limit(args.neurons),
+        n_repeats=int(args.neuron_selection_repeats),
         test_size=float(args.test_size),
         hold=int(args.hold),
         seed_value=int(args.seed) + generation * 1000 + candidate,
@@ -506,7 +528,6 @@ def evaluate_candidate(
     beta = float(getattr(args, "\u03b2"))
     gamma = float(getattr(args, "\u03b3"))
     delta = float(getattr(args, "\u03b4"))
-    epsilon = float(getattr(args, "\u03b5"))
     accuracy_value = float(metrics[f"{args.metric}_mean"])
     accuracy_variance = float(metrics[f"{args.metric}_variance"])
     metrics["objective_accuracy_contribution"] = -alpha * accuracy_value
@@ -515,9 +536,8 @@ def evaluate_candidate(
     metrics["objective_silent_contribution"] = delta * float(
         metrics["silent_neuron_fraction"]
     )
-    metrics["objective_fisher_contribution"] = -epsilon * float(
-        metrics.get("fisher_ratio_DR_mean", 0.0)
-    )
+    # DR is retained as a diagnostic metric, but excluded from optimization.
+    metrics["objective_fisher_contribution"] = 0.0
     objective = _score(
         metrics,
         metric=str(args.metric),
@@ -526,7 +546,6 @@ def evaluate_candidate(
         γ=float(args.γ),
         κ=float(args.κ),
         δ=float(args.δ),
-        ε=float(args.ε),
     )
     result = {
         "generation": generation,
@@ -600,19 +619,18 @@ def cma_es_ask_tell(
 def build_search_settings(args: argparse.Namespace) -> dict:
     return {
         "objective": (
-        "-α*A + β*Var(A) + γ*(S/κ) + δ*R_silent - ε*F"
+        "-α*A + β*Var(A) + γ*(S/κ) + δ*R_silent"
         ),
         "α": float(args.α),
         "β": float(args.β),
         "γ": float(args.γ),
         "δ": float(args.δ),
-        "ε": float(args.ε),
         "κ": float(args.κ),
         "spike_definition": "mean total liquid spikes per trial over all evaluated trials",
         "metric": str(args.metric),
-        "evaluation_neurons": "all" if int(args.neurons) <= 0 else int(args.neurons),
+        "evaluation_neurons": _neuron_limit(args.neurons) or "all",
         "samples_per_class": int(args.samples_per_class),
-        "repeats": int(args.repeats),
+        "neuron_selection_repeats": int(args.neuron_selection_repeats),
         "test_size": float(args.test_size),
         "hold": int(args.hold),
         "T_n_ms": float(args.t_n_ms),
@@ -625,7 +643,6 @@ def build_search_settings(args: argparse.Namespace) -> dict:
             spec["name"] for spec in ALL_PARAMS if spec not in PARAMS
         ],
         "n_starts": int(args.n_starts),
-        "start_spread": float(args.start_spread),
         "start_jobs": int(args.start_jobs),
         "randomize_initial_center": bool(SEARCH_DEFAULTS["randomize_initial_center"]),
         "share_filter_input_params_across_sensors": bool(
@@ -637,18 +654,12 @@ def build_search_settings(args: argparse.Namespace) -> dict:
 def make_initial_centers(args: argparse.Namespace) -> list[np.ndarray]:
     base_x0 = initial_vector()
     rng = np.random.default_rng(int(args.seed))
-    first_center = (
-        random_initial_vector(rng)
-        if bool(SEARCH_DEFAULTS["randomize_initial_center"])
-        else base_x0.copy()
-    )
-    centers = [first_center]
-    for _ in range(2, int(args.n_starts) + 1):
-        centers.append(
-            first_center
-            + float(args.start_spread) * rng.normal(size=base_x0.size)
-        )
-    return centers
+    if bool(SEARCH_DEFAULTS["randomize_initial_center"]):
+        return [
+            random_initial_vector(rng)
+            for _ in range(int(args.n_starts))
+        ]
+    return [base_x0.copy() for _ in range(int(args.n_starts))]
 
 
 def run_one_cma_start(
@@ -829,15 +840,6 @@ def parse_args() -> argparse.Namespace:
         help="Number of independent CMA-ES starts. start001 uses the base initial center.",
     )
     parser.add_argument(
-        "--start-spread",
-        type=float,
-        default=SEARCH_DEFAULTS["start_spread"],
-        help=(
-            "Stddev for scattering start002+ initial centers in encoded CMA coordinates. "
-            "Default: 0 for one start, otherwise --sigma0."
-        ),
-    )
-    parser.add_argument(
         "--start-jobs",
         type=int,
         default=SEARCH_DEFAULTS["start_jobs"],
@@ -850,11 +852,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--neurons",
-        type=int,
+        type=str,
         default=SEARCH_DEFAULTS["neurons"],
-        help="Number of liquid neurons for accuracy evaluation. Use 0 for all neurons.",
+        help="Accuracy neurons: count, ratio (e.g. 0.25), percentage (25%), or 'all'.",
     )
-    parser.add_argument("--repeats", type=int, default=SEARCH_DEFAULTS["repeats"])
+    parser.add_argument(
+        "--neuron-selection-repeats",
+        type=int,
+        default=SEARCH_DEFAULTS["neuron_selection_repeats"],
+        help="Number of random neuron-subset selections per candidate.",
+    )
     parser.add_argument(
         "--test-size",
         type=float,
@@ -958,10 +965,6 @@ def main() -> int:
         raise ValueError("--n-starts must be positive")
     if int(args.start_jobs) <= 0:
         raise ValueError("--start-jobs must be positive")
-    if args.start_spread is None:
-        args.start_spread = 0.0 if int(args.n_starts) == 1 else float(args.sigma0)
-    if float(args.start_spread) < 0:
-        raise ValueError("--start-spread must be non-negative")
     if args.jobs is None:
         args.jobs = int(args.population_size)
 

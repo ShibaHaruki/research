@@ -35,7 +35,6 @@ DEFAULT_OBJECTIVE_WEIGHTS = {
     "beta": 1.0,
     "gamma": 1.0,
     "delta": 100.0,
-    "epsilon": 1.0,
 }
 
 
@@ -50,7 +49,6 @@ def load_objective_weights(search_dir: Path) -> dict[str, float]:
         "beta": ("beta", "\u03b2"),
         "gamma": ("gamma", "\u03b3"),
         "delta": ("delta", "\u03b4"),
-        "epsilon": ("epsilon", "\u03b5"),
     }
     for name, keys in aliases.items():
         for key in keys:
@@ -100,7 +98,6 @@ def build_generation_summary(
         "silent_penalty_contribution": (
             "silent_neuron_fraction", weights["delta"]
         ),
-        "fisher_contribution": ("fisher_ratio_DR_mean", -weights["epsilon"]),
     }
     for name, (source, weight) in component_sources.items():
         if source in df.columns:
@@ -244,7 +241,6 @@ def save_plots(summary: pd.DataFrame, out_dir: Path) -> None:
             "fisher_ratio_DR_std", "accuracy_variance_contribution",
             "accuracy_contribution",
             "spike_penalty_contribution", "silent_penalty_contribution",
-            "fisher_contribution",
         }
     )
     if parameter_columns:

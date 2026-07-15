@@ -282,7 +282,10 @@ def make_run_output_dir(
         / model_dir_name(cfg["models"], include_learning=include_learning)
     )
     exp_dir = experiment_dir_name(cfg)
-    if exp_dir:
+    include_experiment_dir = bool(
+        cfg.get("run", {}).get("INCLUDE_EXPERIMENT_DIR", True)
+    )
+    if exp_dir and include_experiment_dir:
         out_dir = out_dir / exp_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir

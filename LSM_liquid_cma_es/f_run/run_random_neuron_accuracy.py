@@ -221,9 +221,9 @@ def fit_ridge_mahalanobis_model(train_data: np.ndarray, ridge: float) -> dict[st
         gram_inv = np.linalg.pinv(gram)
     return {"mean": mean, "u": u, "gram_inv": gram_inv, "ridge": float(ridge)}
 
-
+#マハラノビス距離の2乗を計算、計算量を減らすため Woodbury の恒等式を利用
 def mahalanobis_sq_woodbury(x: np.ndarray, model: dict[str, np.ndarray | float]) -> float:
-    diff = np.asarray(x, dtype=np.float64) - np.asarray(model["mean"], dtype=np.float64)
+    diff = np.asarray(x, dtype=np.float64) - np.asarray(model["mean"], dtype=np.float64) #素材平均との差を求める
     u = np.asarray(model["u"], dtype=np.float64)
     gram_inv = np.asarray(model["gram_inv"], dtype=np.float64)
     ridge = float(model["ridge"])
@@ -341,7 +341,7 @@ def eval_10fold_like_eval_py(
 def evaluate_random_neuron_accuracy(
     internal_state_dir: Path,
     *,
-    n_neurons: int = 100,
+    n_neurons: int | float | None = 100,
     n_repeats: int = 20,
     n_folds: int = 10,
     test_size: float | None = None,
@@ -365,12 +365,19 @@ def evaluate_random_neuron_accuracy(
         window_end_ms=window_end_ms,
     )
     n_available_neurons = int(states.shape[2])
-    requested_neurons = int(n_neurons)
-    n_select = (
-        n_available_neurons
-        if requested_neurons <= 0
-        else min(requested_neurons, n_available_neurons)
-    )
+    if n_neurons is None:
+        n_select = n_available_neurons
+    elif isinstance(n_neurons, float) and not n_neurons.is_integer():
+        if not 0.0 < n_neurons <= 1.0:
+            raise ValueError("n_neurons ratio must be in the range (0, 1].")
+        n_select = max(1, int(np.ceil(n_available_neurons * n_neurons)))
+    else:
+        requested_neurons = int(n_neurons)
+        n_select = (
+            n_available_neurons
+            if requested_neurons <= 0
+            else min(requested_neurons, n_available_neurons)
+        )
     n_sozai, n_sample, _, n_time = states.shape
     t_n_bins_float = float(t_n_ms) / float(bin_ms)
     t_n_bins = int(round(t_n_bins_float))
@@ -392,7 +399,12 @@ def evaluate_random_neuron_accuracy(
             f"samples per class, but n_sample={n_sample}."
         )
     if n_sozai != 8:
-        raise ValueError(f"eval.py style 3-class aggregation expects 8 classes, got {n_sozai}.")
+        missing = [name for name in DIR_NAME if name not in materials]
+        missing_text = f"; missing: {missing}" if missing else ""
+        raise ValueError(
+            "eval.py style 3-class aggregation expects 8 classes, "
+            f"got {n_sozai}{missing_text}."
+        )
     if test_size is None and effective_folds < 2:
         raise ValueError("Need at least 2 samples per class for k-fold accuracy.")
     if test_size is not None and int(hold) <= 0:

@@ -113,7 +113,9 @@ from f_run.run_common import (
 
 
 def make_liquid_output_dir(cfg: dict, net_cfg: dict) -> Path:
-    return make_run_output_dir(LIQUID_RESULT_DIR, cfg, net_cfg, include_output=False)
+    result_root = cfg.get("run", {}).get("LIQUID_RESULT_ROOT")
+    root_dir = Path(result_root) if result_root else LIQUID_RESULT_DIR
+    return make_run_output_dir(root_dir, cfg, net_cfg, include_output=False)
 
 
 class _CombinedSpikeMonitor:
@@ -218,10 +220,14 @@ def make_liquid_network(net_cfg: dict, N_in: int, rng: np.random.Generator, run_
         inh_indices = indices[indices >= n_exc] - n_exc
         v_exc = StateMonitor(
             layer.exc, "v", record=exc_indices, dt=voltage_dt_ms * ms,
+            # 閾値判定の直前を記録する。start では発火後の reset 値だけが
+            # 見える場合があり、膜電位の立ち上がりを取り逃がす。
+            when="thresholds", order=-1,
             name=f"V_liq_E_L{layer_index + 1}",
         )
         v_inh = StateMonitor(
             layer.inh, "v", record=inh_indices, dt=voltage_dt_ms * ms,
+            when="thresholds", order=-1,
             name=f"V_liq_I_L{layer_index + 1}",
         )
         V_liq.append(_CombinedStateMonitor(v_exc, v_inh))

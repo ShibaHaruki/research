@@ -1,1 +1,1 @@
-"""CMA-ES search configuration."""
+
