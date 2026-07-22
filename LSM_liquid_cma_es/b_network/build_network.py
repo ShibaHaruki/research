@@ -198,7 +198,7 @@ def make_in_neuron_group(N_in=None, input_ta=None, cfg: dict | None = None, name
         return G_in, input_ta
     return G_in
 
-
+# ニューロングループの作成
 def _create_spiking_group(N: int, eqs: str, neuron_model: dict, name: str) -> NeuronGroup:
     return NeuronGroup(
         N,
@@ -292,6 +292,7 @@ def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
         n_inh = int(np.round(r_inh_layer * N))
         n_inh = min(max(n_inh, 1), N - 1)
         n_exc = N - n_inh
+        # 興奮性のニューロングループの作成
         group_exc = _create_spiking_group(
             N=n_exc,
             eqs=eqs,
@@ -307,6 +308,7 @@ def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
             set_position=False,
             typ_value=1,
         )
+        # 抑制性のニューロングループの作成
         group_inh = _create_spiking_group(
             N=n_inh,
             eqs=eqs,
@@ -335,50 +337,6 @@ def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
 # ---------------------------------------------------------------------------
 # 入力→リキッド、リキッド再帰の Synapses を作る。
 # 接続確率、初期重み、学習則の式、層ごとの重みスケールをここで反映する。
-def _post_type_counts(group: NeuronGroup) -> tuple[int, int]:
-    typ = np.asarray(group.typ)
-    return int(np.sum(typ == 1)), int(np.sum(typ == -1))
-
-
-def _indices_by_post_type(synapses: Synapses) -> tuple[np.ndarray, np.ndarray]:
-    post_types = np.asarray(synapses.typ_post)
-    return np.where(post_types == 1)[0], np.where(post_types == -1)[0]
-
-
-def _set_pair_weights(
-    synapses: Synapses,
-    w_attr: str,
-    idx_exc_post: np.ndarray,
-    idx_inh_post: np.ndarray,
-    gain_exc_post: float,
-    gain_inh_post: float,
-    N_post_E: int,
-    N_post_I: int,
-    rng: np.random.Generator,
-    init_fn,
-) -> None:
-    weights = np.zeros(len(synapses), dtype=float)
-    if idx_exc_post.size:
-        weights[idx_exc_post] = init_fn(
-            rng,
-            idx_exc_post.size,
-            gain=gain_exc_post,
-            N_post=N_post_E,
-        )
-    if idx_inh_post.size:
-        weights[idx_inh_post] = init_fn(
-            rng,
-            idx_inh_post.size,
-            gain=gain_inh_post,
-            N_post=N_post_I,
-        )
-    setattr(synapses, w_attr, weights)
-    if "x_stp" in synapses.variables:
-        synapses.x_stp = 1.0
-    if "u_stp" in synapses.variables:
-        synapses.u_stp = 0.0
-
-
 def _make_synapses(
     pre,
     post,
