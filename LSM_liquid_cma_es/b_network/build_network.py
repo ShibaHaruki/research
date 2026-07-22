@@ -136,25 +136,6 @@ class LiquidLayer:
         object.__setattr__(self, name, value)
 
 # ニューロンを興奮性・抑制性に分類し、それぞれの膜時定数と不応期を設定する関数
-def make_ei_arrays(
-    N: int,
-    r_inh: float,
-    rng: np.random.Generator,
-    tau_exc: float,
-    tau_inh: float,
-    ref_exc: float,
-    ref_inh: float,
-):
-    
-    neuron_array = np.ones(N, dtype=np.int32)
-    N_inh = int(np.round(r_inh * N))
-    inh_idx = rng.choice(N, size=N_inh, replace=False) if N_inh > 0 else np.array([], dtype=int)
-    neuron_array[inh_idx] = -1
-
-    tau_m = np.where(neuron_array == 1, tau_exc, tau_inh)
-    t_ref = np.where(neuron_array == 1, ref_exc, ref_inh)
-    return neuron_array, tau_m, t_ref 
-
 # 入力のNeuronGroupを作る関数。入力のTimedArrayも同時に作ることができる。
 def make_in_neuron_group(N_in=None, input_ta=None, cfg: dict | None = None, name="G_in"):
    
@@ -212,23 +193,19 @@ def _create_spiking_group(N: int, eqs: str, neuron_model: dict, name: str) -> Ne
     )
 
 # ニューロン種別・時定数・膜電位・入力電流・位置などの初期値をまとめて設定する関数
-def _init_group_state(group: NeuronGroup,cfg: dict,rng: np.random.Generator,r_inh: float,neuron_model: dict,set_position: bool = False,typ_value: int | None = None,) -> None:
+def _init_group_state(
+    group: NeuronGroup,
+    cfg: dict,
+    rng: np.random.Generator,
+    neuron_model: dict,
+    set_position: bool = False,
+    typ_value: int = 1,
+) -> None:
 
     N = len(group)
-    if typ_value is None:
-        typ, tau_m, t_ref = make_ei_arrays(
-            N=N,
-            r_inh=r_inh,
-            rng=rng,
-            tau_exc=cfg["tau_exc"],
-            tau_inh=cfg["tau_inh"],
-            ref_exc=cfg["ref_exc"],
-            ref_inh=cfg["ref_inh"],
-        )
-    else:
-        typ = np.full(N, int(typ_value), dtype=np.int32)
-        tau_m = np.full(N, cfg["tau_exc"] if typ_value == 1 else cfg["tau_inh"])
-        t_ref = np.full(N, cfg["ref_exc"] if typ_value == 1 else cfg["ref_inh"])
+    typ = np.full(N, int(typ_value), dtype=np.int32)
+    tau_m = np.full(N, cfg["tau_exc"] if typ_value == 1 else cfg["tau_inh"])
+    t_ref = np.full(N, cfg["ref_exc"] if typ_value == 1 else cfg["ref_inh"])
 
     group.typ = typ
     group.tau_m = tau_m * ms
@@ -303,7 +280,6 @@ def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
             group=group_exc,
             cfg=cfg,
             rng=rng,
-            r_inh=0.0,
             neuron_model=neuron_model_e,
             set_position=False,
             typ_value=1,
@@ -319,7 +295,6 @@ def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
             group=group_inh,
             cfg=cfg,
             rng=rng,
-            r_inh=1.0,
             neuron_model=neuron_model_i,
             set_position=False,
             typ_value=-1,
@@ -331,12 +306,6 @@ def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
 
     return groups
 
-
-# ---------------------------------------------------------------------------
-# Synapse helpers
-# ---------------------------------------------------------------------------
-# 入力→リキッド、リキッド再帰の Synapses を作る。
-# 接続確率、初期重み、学習則の式、層ごとの重みスケールをここで反映する。
 def _make_synapses(
     pre,
     post,
