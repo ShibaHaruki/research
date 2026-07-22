@@ -185,13 +185,16 @@ def build_input_current(
 
 
 def reset_dynamic_state(objects: dict, net_cfg: dict):
+    active_filters = {
+        str(name).split("__", 1)[0]
+        for name in net_cfg.get("USE_INPUT_FILTERS", [])
+    }
     for group in objects.get("G_liq", []):
         group.v = group.v
-        group.I_merkel = 0
-        group.I_meissner = 0
-        group.I_RI = 0
-        group.I_SI = 0
-        group.I_USI = 0
+        for filter_name in active_filters:
+            current_name = f"I_{filter_name}"
+            if hasattr(group, current_name):
+                setattr(group, current_name, 0)
         group.I_syn = group.I_syn
         group.H_syn = group.H_syn
 

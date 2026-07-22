@@ -211,16 +211,9 @@ def _create_spiking_group(N: int, eqs: str, neuron_model: dict, name: str) -> Ne
         name=name,
     )
 
+# ニューロン種別・時定数・膜電位・入力電流・位置などの初期値をまとめて設定する関数
+def _init_group_state(group: NeuronGroup,cfg: dict,rng: np.random.Generator,r_inh: float,neuron_model: dict,set_position: bool = False,typ_value: int | None = None,) -> None:
 
-def _init_group_state(
-    group: NeuronGroup,
-    cfg: dict,
-    rng: np.random.Generator,
-    r_inh: float,
-    neuron_model: dict,
-    set_position: bool = False,
-    typ_value: int | None = None,
-) -> None:
     N = len(group)
     if typ_value is None:
         typ, tau_m, t_ref = make_ei_arrays(
@@ -241,11 +234,15 @@ def _init_group_state(
     group.tau_m = tau_m * ms
     group.t_ref = t_ref * ms
 
-    group.I_merkel = 0
-    group.I_meissner = 0
-    group.I_RI = 0
-    group.I_SI = 0
-    group.I_USI = 0
+    active_filters = {
+        str(name).split("__", 1)[0]
+        for name in cfg.get("USE_INPUT_FILTERS", [])
+    }
+    for filter_name in active_filters:
+        current_name = f"I_{filter_name}"
+        if hasattr(group, current_name):
+            setattr(group, current_name, 0)
+
     group.I_syn = 0
     group.H_syn = 0
     group.tau_r = cfg["tau_r"] * ms
@@ -266,11 +263,23 @@ def _init_group_state(
 
     neuron_model["set_shared"](group)
 
-
+# LSMのリキッド層を構成する興奮性ニューロン群と抑制性ニューロン群を作成し，初期化して、各層を LiquidLayer として返す関数
 def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
+
+    #E/Iニューロンモデルを取得する
     neuron_model_e = NEURON_MODELS["LIF_E"]
     neuron_model_i = NEURON_MODELS["LIF_I"]
-    eqs = f"{neuron_model_e['eqs']}\n{_synapse_post_equations(cfg)}"
+
+    filters = list(dict.fromkeys(str(name).split("__", 1)[0] for name in cfg.get("USE_INPUT_FILTERS", [])))
+
+    if not filters:
+        raise ValueError("At least one input filter must be enabled.")
+    
+    input_sum = " + ".join(f"I_{filter_name}" for filter_name in filters)
+    input_eqs = "\n".join(
+        [*(f"I_{filter_name} : 1" for filter_name in filters), f"I_in = {input_sum} : 1"]
+    )
+    eqs = f"{neuron_model_e['eqs']}\n{input_eqs}\n{_synapse_post_equations(cfg)}"
 
     groups = []
     for layer_index, N in enumerate(_layer_sizes(cfg, "N_liq")):
