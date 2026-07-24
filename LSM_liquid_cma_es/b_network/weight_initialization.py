@@ -1,17 +1,11 @@
-"""Weight initialization for input-to-liquid and liquid recurrent synapses."""
+"""シナプス重みを初期化するモジュール"""
 
 import numpy as np
 
 _EPS = 1e-12
 
-
-def init_in_to_liq(
-    rng: np.random.Generator,
-    n_syn: int,
-    scale: float,
-    N_post: int,
-) -> np.ndarray:
-    """Initialize non-negative input weights with fan-in normalization."""
+#入力層からLiquid層へのシナプス重みを初期化
+def init_in_to_liq(rng: np.random.Generator,n_syn: int,scale: float,N_post: int,) -> np.ndarray:
     n_syn = int(n_syn)
     N_post = int(N_post)
 
@@ -19,13 +13,8 @@ def init_in_to_liq(
     kbar = max(float(n_syn) / float(max(N_post, 1)), _EPS)
     return np.abs(x) * float(scale) / np.sqrt(kbar)
 
-
-def init_liq_intra(
-    rng: np.random.Generator,
-    n_syn: int,
-    gain: float,
-    N_post: int,
-) -> np.ndarray:
+#Liquid層内のシナプス重みを初期化
+def init_liq_intra(rng: np.random.Generator,n_syn: int,gain: float,N_post: int,) -> np.ndarray:
     n_syn = int(n_syn)
     N_post = int(N_post)
 

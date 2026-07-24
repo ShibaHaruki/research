@@ -42,12 +42,6 @@ def _pair_values(pair_dict: dict[str, Any], layer_index: int) -> tuple[float, fl
 # 興奮性・抑制性の接続先ごとの結合確率や重みスケールを、設定辞書から読み取る関数
 def _read_post_ei_values(params: dict[str, Any], key: str) -> tuple[float, float]:
 
-    """対応している記述形式:
-    - {"p": 0.1}
-    - {"p": {"E": 0.1, "I": 0.2}}
-    - {"p_E": 0.1, "p_I": 0.2}
-    """
-
     value = params.get(key)
     if isinstance(value, dict):
         e_value = value.get("E", value.get("exc"))
@@ -80,11 +74,6 @@ def _synapse_namespace(cfg: dict | None, syn_model: dict) -> dict[str, Any]:
         namespace[name] = value
     return namespace
 
-# ---------------------------------------------------------------------------
-# Neuron helpers
-# ---------------------------------------------------------------------------
-# 入力層、リキッド層を Brian2 の NeuronGroup として作る。
-# 興奮/抑制ニューロンの割り当て、時定数、不応期、初期膜電位もここで決める。
 
 #興奮性と抑制性の2つのNeuronGroupを、解析時に1つのLiquid層のように読み書きするための互換クラス
 class LiquidLayer:
@@ -306,15 +295,10 @@ def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
 
     return groups
 
-def _make_synapses(
-    pre,
-    post,
-    syn_model: dict,
-    name: str,
-    learning: dict | None = None,
-    namespace: dict[str, Any] | None = None,
-    cfg: dict | None = None,
-):
+
+def _make_synapses(pre,post,syn_model: dict,name: str,learning: dict | None = None,namespace: dict[str, Any] | None = None,cfg: dict | None = None,):
+
+    # namespaceをまとめる
     merged_namespace = merge_namespace(
         syn_model.get("namespace"),
         _synapse_namespace(cfg, syn_model),
@@ -329,7 +313,8 @@ def _make_synapses(
         model = syn_model["eqs"] + learning["eqs"]
         on_pre = syn_model["on_pre"] + learning["on_pre"]
         on_post = learning["on_post"]
-
+    
+    #Brian2へ渡す引数を作る
     kwargs = dict(model=model, on_pre=on_pre, method="euler", name=name)
     if on_post:
         kwargs["on_post"] = on_post
@@ -337,7 +322,7 @@ def _make_synapses(
         kwargs["namespace"] = merged_namespace
     return Synapses(pre, post, **kwargs)
 
-
+#入力からLiquid層内へのシナプスを作る
 def make_in_to_liq_synapses(G_in, G_liq, rng, cfg, name_prefix="S"):
     filters = cfg["USE_INPUT_FILTERS"]
     input_channels = cfg.get("USE_INPUT_CHANNELS", list(range(int(cfg.get("NUM_CHANNEL", 0)))))
@@ -417,16 +402,9 @@ def make_in_to_liq_synapses(G_in, G_liq, rng, cfg, name_prefix="S"):
 
     return list(syn_map.values()), meta
 
-
-def _poisson_input_config(cfg: dict) -> dict[str, Any]:
-    noise_cfg = dict(cfg.get("poisson_input", {}))
-    if "POISSON_INPUT_ENABLE" in cfg:
-        noise_cfg["enabled"] = cfg["POISSON_INPUT_ENABLE"]
-    return noise_cfg
-
-
+#入力ポアソンスパイクからLiquid層へのシナプスを作る
 def make_poisson_to_liq_synapses(G_liq, rng, cfg: dict, name_prefix="S_poisson"):
-    noise_cfg = _poisson_input_config(cfg)
+    noise_cfg = dict(cfg.get("poisson_input", {}))
     if not bool(noise_cfg.get("enabled", False)):
         return [], [], []
 
@@ -494,9 +472,9 @@ def make_poisson_to_liq_synapses(G_liq, rng, cfg: dict, name_prefix="S_poisson")
 
     return groups, synapse_list, meta
 
-
+#Liquid層内のシナプスを作る
 def make_liq_intra_synapses(G_liq, rng, cfg: dict, name_prefix="S_liq_intra_"):
-    """Create four explicit E/I recurrent connection populations per layer."""
+
     syn_model = SYNAPSE_MODELS[cfg["synapse_model"]]["synapse"]
     connect_fn = get_connection(
         "liq_intra", cfg.get("liq_intra_connection", "random")
