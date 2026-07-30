@@ -13,7 +13,7 @@ from .plotting import try_import_pyplot
 
 EPS = 1e-12
 
-
+# 「サンプル数 × 特徴量数」の2次元配列へ変換する関数
 def _as_2d_samples(array: np.ndarray) -> np.ndarray:
     arr = np.asarray(array, dtype=np.float64)
     if arr.ndim == 1:
@@ -22,13 +22,8 @@ def _as_2d_samples(array: np.ndarray) -> np.ndarray:
         return arr
     return arr.reshape(arr.shape[0], -1)
 
-
-def class_feature_matrices(
-    features_by_class: np.ndarray | Sequence[np.ndarray],
-    *,
-    nan_fill_value: float = 0.0,
-) -> list[np.ndarray]:
-    """Return a list of ``(n_samples, n_features)`` arrays, one per class."""
+#素材・クラスごとに分かれた特徴量を，すべて「サンプル数 × 特徴量数」の2次元配列へ統一する関数
+def class_feature_matrices(features_by_class: np.ndarray | Sequence[np.ndarray],*,nan_fill_value: float = 0.0,) -> list[np.ndarray]:
 
     if isinstance(features_by_class, np.ndarray) and features_by_class.dtype != object:
         arr = np.asarray(features_by_class, dtype=np.float64)
