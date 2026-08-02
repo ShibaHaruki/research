@@ -194,7 +194,8 @@ def apply_liquid_params(cfg: dict, params: dict[str, float]) -> dict:
     shared_route = net.get("SHARED_IN_ROUTE")
     if isinstance(shared_route, dict):
         shared_route["enabled"] = False
-    net["N_liq"] = [int(params.get("n_liq", 1000))]
+    if "n_liq" in params:
+        net["N_liq"] = [int(params["n_liq"])]
     net["r_inh_liq"] = float(params.get("r_inh_liq", net.get("r_inh_liq", 0.2)))
 
     lif_cfg = cfg["neuron_models"]["LIF"]
@@ -514,11 +515,14 @@ def evaluate_candidate(
             max_samples_per_class=int(args.samples_per_class),
         )
     )
+    # Use the variance across the ten evaluation splits for the objective.
+    # The neuron-selection repeat variance remains available as a diagnostic
+    # in accuracy8_overall_std.
     metrics["accuracy8_overall_variance"] = float(
-        metrics["accuracy8_overall_std"] ** 2
+        metrics.get("accuracy8_fold_variance_mean", 0.0)
     )
     metrics["accuracy3_overall_variance"] = float(
-        metrics["accuracy3_overall_std"] ** 2
+        metrics.get("accuracy3_fold_variance_mean", 0.0)
     )
     metrics["spike_base"] = float(args.κ)
     metrics["spike_ratio"] = float(
@@ -676,20 +680,6 @@ def run_one_cma_start(
         json.dumps(jsonable(search_settings), indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    (search_dir / "initial_center.json").write_text(
-        json.dumps(
-            jsonable(
-                {
-                    "start": int(start_index),
-                    "raw_x0": np.asarray(x0, dtype=float).tolist(),
-                    "params": decode_vector(np.asarray(x0, dtype=float)),
-                }
-            ),
-            indent=2,
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
 
     best_result_seen: dict | None = None
 
@@ -744,12 +734,10 @@ def run_one_cma_start(
             f"var8={row.get('accuracy8_overall_variance')} "
             f"spikes={row.get('mean_total_spikes_per_trial')} "
             f"silent={row.get('silent_neuron_fraction')} "
-            f"DR={row.get('fisher_ratio_DR_mean')} "
             f"weighted(acc8={metrics.get('objective_accuracy_contribution')}, "
             f"var8={metrics.get('objective_variance_contribution')}, "
             f"spikes={metrics.get('objective_spike_contribution')}, "
-            f"silent={metrics.get('objective_silent_contribution')}, "
-            f"DR={metrics.get('objective_fisher_contribution')})"
+            f"silent={metrics.get('objective_silent_contribution')})"
         )
 
     def evaluate_population(generation: int, arx: np.ndarray) -> list[dict]:

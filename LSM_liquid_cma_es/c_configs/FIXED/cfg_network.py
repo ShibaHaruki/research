@@ -16,7 +16,7 @@
 CFG_NETWORK = {
     # 1) neuron groups
     # Layer counts are inferred from len(N_liq).
-    "N_liq": [1000],
+    "N_liq": [100],
     "r_inh_liq": 0.5,
 
     # Optional shared input settings. When enabled, the p/scale values below

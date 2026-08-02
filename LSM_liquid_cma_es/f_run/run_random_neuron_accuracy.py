@@ -457,6 +457,12 @@ def evaluate_random_neuron_accuracy(
                 "accuracy8_mean": acc8_mean,
                 "accuracy3_overall": acc3_overall,
                 "accuracy3_mean": acc3_mean,
+                "accuracy8_fold_variance": float(
+                    np.var(acc_list8, ddof=1 if len(acc_list8) > 1 else 0)
+                ),
+                "accuracy3_fold_variance": float(
+                    np.var(acc_list3, ddof=1 if len(acc_list3) > 1 else 0)
+                ),
                 "fisher_ratio_DR": float(fisher_metrics["DR"]),
                 "trace_Sb": float(fisher_metrics["trace_Sb"]),
                 "trace_Sw": float(fisher_metrics["trace_Sw"]),
@@ -513,10 +519,25 @@ def evaluate_random_neuron_accuracy(
         "window_start_ms": window_start_ms,
         "window_end_ms": window_end_ms,
         "accuracy8_overall_mean": float(summary_df["accuracy8_overall"].mean()),
-        "accuracy8_overall_std": float(summary_df["accuracy8_overall"].std(ddof=1 if len(summary_df) > 1 else 0)),
+        # Report the standard deviation corresponding to the fold variance
+        # used by CMA-ES. The neuron-selection repeat spread is retained
+        # separately for diagnostics.
+        "accuracy8_overall_std": float(
+            np.sqrt(max(float(summary_df["accuracy8_fold_variance"].mean()), 0.0))
+        ),
+        "accuracy8_neuron_selection_std": float(
+            summary_df["accuracy8_overall"].std(ddof=1 if len(summary_df) > 1 else 0)
+        ),
+        "accuracy8_fold_variance_mean": float(summary_df["accuracy8_fold_variance"].mean()),
         "accuracy8_mean_mean": float(summary_df["accuracy8_mean"].mean()),
         "accuracy3_overall_mean": float(summary_df["accuracy3_overall"].mean()),
-        "accuracy3_overall_std": float(summary_df["accuracy3_overall"].std(ddof=1 if len(summary_df) > 1 else 0)),
+        "accuracy3_overall_std": float(
+            np.sqrt(max(float(summary_df["accuracy3_fold_variance"].mean()), 0.0))
+        ),
+        "accuracy3_neuron_selection_std": float(
+            summary_df["accuracy3_overall"].std(ddof=1 if len(summary_df) > 1 else 0)
+        ),
+        "accuracy3_fold_variance_mean": float(summary_df["accuracy3_fold_variance"].mean()),
         "accuracy3_mean_mean": float(summary_df["accuracy3_mean"].mean()),
         "fisher_ratio_DR_mean": float(summary_df["fisher_ratio_DR"].mean()),
         "fisher_ratio_DR_std": float(summary_df["fisher_ratio_DR"].std(ddof=1 if len(summary_df) > 1 else 0)),

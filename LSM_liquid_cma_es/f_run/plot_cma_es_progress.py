@@ -200,13 +200,13 @@ def save_plots(summary: pd.DataFrame, out_dir: Path) -> None:
     objective_axis.legend()
 
     component_plots = [
-        ("accuracy8_overall_mean", "Accuracy"),
-        ("accuracy8_overall_variance", "Accuracy variance"),
-        ("mean_total_spikes_per_trial", "Mean total spikes"),
-        ("silent_neuron_fraction", "Silent-neuron fraction"),
-        ("fisher_ratio_DR_mean", "Fisher ratio DR"),
+        ("accuracy_contribution", "Accuracy contribution"),
+        ("accuracy_variance_contribution", "Accuracy variance contribution"),
+        ("spike_penalty_contribution", "Spike penalty contribution"),
+        ("silent_penalty_contribution", "Silent-neuron penalty contribution"),
     ]
-    for axis, (column, title) in zip(axes.flat[1:], component_plots):
+    component_axes = list(axes.flat[1:])
+    for axis, (column, title) in zip(component_axes, component_plots):
         best_column = f"best_{column}"
         mean_column = f"mean_{column}"
         if best_column in summary.columns:
@@ -214,9 +214,11 @@ def save_plots(summary: pd.DataFrame, out_dir: Path) -> None:
             axis.plot(gen, summary[mean_column], marker=".", alpha=0.7, label="mean")
         axis.axhline(0.0, color="black", linewidth=0.7)
         axis.set_title(title)
-        axis.set_ylabel("Raw value")
+        axis.set_ylabel("Weighted contribution")
         axis.grid(True, alpha=0.3)
         axis.legend()
+    for axis in component_axes[len(component_plots):]:
+        axis.set_visible(False)
 
     for axis in axes[-1, :]:
         axis.set_xlabel("Generation")
