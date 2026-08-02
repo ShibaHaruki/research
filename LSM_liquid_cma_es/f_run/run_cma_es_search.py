@@ -692,34 +692,36 @@ def run_one_cma_start(
             "objective": result.get("objective"),
         }
         metrics = result.get("metrics") or {}
-        for key in (
-            "accuracy8_overall_mean",
-            "accuracy8_overall_std",
-            "accuracy8_overall_variance",
-            "accuracy3_overall_mean",
-            "accuracy3_overall_std",
-            "accuracy3_overall_variance",
-            "fisher_ratio_DR_mean",
-            "mean_total_spikes_per_trial",
-            "std_total_spikes_per_trial",
-            "total_spikes_all_trials",
-            "spike_base",
-            "spike_ratio",
-            "active_neuron_count",
-            "silent_neuron_count",
-            "total_neuron_count",
-            "silent_neuron_fraction",
-        ):
-            row[key] = metrics.get(key)
+        for key, value in metrics.items():
+            if isinstance(value, (dict, list, tuple)):
+                row[key] = json.dumps(jsonable(value), ensure_ascii=False)
+            else:
+                row[key] = value
         for key, value in result.get("params", {}).items():
             row[key] = value
 
         exists = results_csv.exists()
-        with results_csv.open("a", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=list(row))
-            if not exists:
+        if not exists:
+            with results_csv.open("w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=list(row))
                 writer.writeheader()
-            writer.writerow(row)
+                writer.writerow(row)
+        else:
+            with results_csv.open("r", newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                previous_rows = list(reader)
+                fieldnames = list(reader.fieldnames or [])
+            new_fields = [key for key in row if key not in fieldnames]
+            if new_fields:
+                fieldnames.extend(new_fields)
+                previous_rows.append(row)
+                with results_csv.open("w", newline="", encoding="utf-8") as f:
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(previous_rows)
+            else:
+                with results_csv.open("a", newline="", encoding="utf-8") as f:
+                    csv.DictWriter(f, fieldnames=fieldnames).writerow(row)
         objective = result.get("objective")
         if objective is not None and math.isfinite(float(objective)):
             if (
@@ -1050,6 +1052,25 @@ def main() -> int:
             if completed.returncode != 0:
                 print(
                     f"[cma-progress] plot generation failed for {progress_dir} "
+                    f"(exit={completed.returncode})",
+                    file=sys.stderr,
+                )
+        if int(args.n_starts) > 1:
+            progress_script = PROJECT_ROOT / "f_run" / "plot_cma_es_progress.py"
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(progress_script),
+                    "--search-dir",
+                    str(search_dir),
+                    "--combine-starts",
+                ],
+                cwd=PROJECT_ROOT,
+                check=False,
+            )
+            if completed.returncode != 0:
+                print(
+                    f"[cma-progress] combined plot generation failed for {search_dir} "
                     f"(exit={completed.returncode})",
                     file=sys.stderr,
                 )

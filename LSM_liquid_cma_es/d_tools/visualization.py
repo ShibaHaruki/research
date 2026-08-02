@@ -91,6 +91,7 @@ def save_spike_raster(
     start_time=None,
     duration_ms: float | None = None,
     n_exc: int | None = None,
+    n_neurons: int | None = None,
 ) -> None:
     # SpikeMonitor の時刻を試行内 0 ms 始まりに直し、ラスタープロットとして保存する。
     out_fp = Path(out_fp)
@@ -141,6 +142,8 @@ def save_spike_raster(
     plt.xlabel("Time [ms]")
     plt.ylabel("Neuron index")
     plt.title(f"{title} | spikes={int(indices.size)}")
+    if n_neurons is not None and int(n_neurons) > 0:
+        plt.ylim(-0.5, int(n_neurons) - 0.5)
     if duration_ms is not None and float(duration_ms) > 0:
         plt.xlim(0.0, float(duration_ms))
     plt.tight_layout()

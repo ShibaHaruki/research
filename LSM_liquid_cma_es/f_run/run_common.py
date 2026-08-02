@@ -162,6 +162,7 @@ def build_input_current(
     sensor_gain=None,
     filter_gain=None,
     opt_filter_gain=None,
+    include_opt_filter_gain: bool = True,
 ):
     channels = sorted(input_filter_map)
     nt = in_data_0.shape[1]
@@ -176,9 +177,9 @@ def build_input_current(
         gain = float(sensor_gain.get(ch, sensor_gain.get(str(ch), 1.0)))
         data_ch = gain * in_data_0[ch, :]
         for filter_name in input_filter_map[ch]:
-            gain_filter = float(filter_gain.get(filter_name, 1.0)) * float(
-                opt_filter_gain.get(filter_name, 1.0)
-            )
+            gain_filter = float(filter_gain.get(filter_name, 1.0))
+            if include_opt_filter_gain:
+                gain_filter *= float(opt_filter_gain.get(filter_name, 1.0))
             input_current[row, :] = gain_filter * filter_funcs[filter_name](data_ch, t_array, dt)
             row += 1
     return input_current

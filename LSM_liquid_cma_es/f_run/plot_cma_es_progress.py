@@ -21,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from d_tools.run_paths import jsonable
+from c_configs.CMA_ES.cfg_search import PARAMS
 
 
 DEFAULT_SEARCH_DIR = (
@@ -108,16 +109,26 @@ def build_generation_summary(
         "accuracy8_overall_mean", "accuracy8_overall_std",
         "accuracy8_overall_variance", "accuracy3_overall_mean",
         "accuracy3_overall_std", "accuracy3_overall_variance",
+        "accuracy8_fold_variance_mean", "accuracy3_fold_variance_mean",
+        "accuracy8_neuron_selection_std", "accuracy3_neuron_selection_std",
         "fisher_ratio_DR_mean", "fisher_ratio_DR_std", "spike_base",
+        "trace_Sb_mean", "trace_Sw_mean",
         "spike_ratio", "mean_total_spikes_per_trial", "std_total_spikes_per_trial",
         "total_spikes_all_trials", "silent_neuron_count", "total_neuron_count",
         "active_neuron_count", "silent_neuron_fraction", "n_spike_trials",
         "n_activity_trials", "n_activity_mismatched_shapes",
+        "objective_accuracy_contribution", "objective_variance_contribution",
+        "objective_spike_contribution", "objective_silent_contribution",
+        "objective_fisher_contribution",
         *component_sources,
     }
+    # Use the CMA-ES parameter specification as the source of truth. This
+    # prevents evaluation settings such as n_folds, test_size, and seed from
+    # being mistaken for searched parameters.
     parameter_columns = [
-        column for column in df.columns
-        if column not in known_columns and pd.api.types.is_numeric_dtype(df[column])
+        str(spec["name"])
+        for spec in PARAMS
+        if str(spec["name"]) in df.columns
     ]
 
     rows = []
@@ -258,20 +269,137 @@ def save_plots(summary: pd.DataFrame, out_dir: Path) -> None:
             axis.legend()
         for axis in axes.flat[len(parameter_columns):]:
             axis.set_visible(False)
-        fig.suptitle("CMA-ES parameter progress")
-        fig.tight_layout()
+        fig.suptitle("CMA-ES parameter progress", y=0.995)
+        # Reserve space for the figure title and keep neighboring parameter
+        # panels separated when parameter names or legends are long.
+        fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.965], h_pad=1.8, w_pad=1.2)
         fig.savefig(out_dir / "cma_es_parameter_progress.png", dpi=160)
         plt.close(fig)
+
+
+def save_parameter_pca_plot(
+    results_csv: Path,
+    summary: pd.DataFrame,
+    out_dir: Path,
+) -> None:
+    """Plot CMA-ES candidate and generation trajectories in parameter PCA space."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    raw = pd.read_csv(results_csv)
+    parameter_columns = [
+        column.removeprefix("mean_")
+        for column in summary.columns
+        if column.startswith("mean_")
+        and column.removeprefix("mean_") not in {
+            "accuracy8_overall_mean", "accuracy8_overall_std",
+            "accuracy8_overall_variance", "accuracy3_overall_mean",
+            "accuracy3_overall_std", "fisher_ratio_DR_mean",
+            "fisher_ratio_DR_std", "mean_total_spikes_per_trial",
+            "spike_ratio", "silent_neuron_fraction",
+            "accuracy_contribution", "accuracy_variance_contribution",
+            "spike_penalty_contribution", "silent_penalty_contribution",
+        }
+        and column.removeprefix("mean_") in raw.columns
+    ]
+    if not parameter_columns:
+        return
+
+    values = raw[parameter_columns].apply(pd.to_numeric, errors="coerce")
+    valid = values.notna().all(axis=1)
+    raw = raw.loc[valid].copy()
+    values = values.loc[valid].to_numpy(dtype=float)
+    if values.shape[0] == 0:
+        return
+
+    center = values.mean(axis=0)
+    scale = values.std(axis=0, ddof=0)
+    scale[scale == 0.0] = 1.0
+    standardized = (values - center) / scale
+    _, _, vt = np.linalg.svd(standardized, full_matrices=False)
+    components = vt[: min(2, vt.shape[0])]
+    scores = standardized @ components.T
+    if scores.shape[1] == 1:
+        scores = np.column_stack([scores[:, 0], np.zeros(scores.shape[0])])
+
+    raw["PC1"] = scores[:, 0]
+    raw["PC2"] = scores[:, 1]
+    raw[["generation", "candidate", "objective", "PC1", "PC2"]].to_csv(
+        out_dir / "cma_es_parameter_pca.csv", index=False
+    )
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+    scatter = ax.scatter(
+        raw["PC1"], raw["PC2"], c=raw["generation"], cmap="viridis",
+        s=32, alpha=0.65, edgecolors="none", label="candidate",
+    )
+    fig.colorbar(scatter, ax=ax, label="Generation")
+
+    starts = raw["start"].dropna().unique().tolist() if "start" in raw.columns else [1]
+    colors = plt.get_cmap("tab10")(np.linspace(0.0, 1.0, max(len(starts), 1)))
+    for start_index, color in zip(sorted(starts), colors):
+        start_group = raw if "start" not in raw.columns else raw[raw["start"] == start_index]
+        mean_points = []
+        best_points = []
+        for generation, group in start_group.groupby("generation", sort=True):
+            mean_points.append((float(group["PC1"].mean()), float(group["PC2"].mean())))
+            best = group.sort_values("objective").iloc[0]
+            best_points.append((float(best["PC1"]), float(best["PC2"])))
+        label_suffix = "" if len(starts) == 1 else f" start{int(start_index):03d}"
+        if mean_points:
+            mean_array = np.asarray(mean_points)
+            ax.plot(mean_array[:, 0], mean_array[:, 1], "o-", color=color, linewidth=2,
+                    markersize=5, label=f"generation mean{label_suffix}")
+        if best_points:
+            best_array = np.asarray(best_points)
+            ax.plot(best_array[:, 0], best_array[:, 1], "s--", color=color, linewidth=1.8,
+                    markersize=5, label=f"best candidate{label_suffix}")
+
+    ax.set_title("CMA-ES parameter trajectory (PCA)")
+    ax.set_xlabel("PC1")
+    ax.set_ylabel("PC2")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(out_dir / "cma_es_parameter_pca.png", dpi=160)
+    plt.close(fig)
+
+
+def combine_start_results(search_dir: Path) -> Path:
+    """Combine per-start result CSVs and return the generated CSV path."""
+    start_csvs = sorted(search_dir.glob("start*/cma_es_results.csv"))
+    if not start_csvs:
+        raise FileNotFoundError(f"No per-start cma_es_results.csv files found under {search_dir}")
+    frames = []
+    for csv_path in start_csvs:
+        frame = pd.read_csv(csv_path)
+        start_name = csv_path.parent.name
+        start_index = int(start_name.removeprefix("start"))
+        if "start" not in frame.columns:
+            frame.insert(0, "start", start_index)
+        frames.append(frame)
+    combined = pd.concat(frames, ignore_index=True)
+    out_dir = search_dir / "progress"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "cma_es_results_combined.csv"
+    combined.to_csv(out_path, index=False)
+    return out_path
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Summarize CMA-ES search progress.")
     parser.add_argument("--search-dir", type=Path, default=DEFAULT_SEARCH_DIR)
     parser.add_argument("--results-csv", type=Path, default=None)
+    parser.add_argument("--combine-starts", action="store_true")
     args = parser.parse_args()
 
     search_dir = Path(args.search_dir)
-    results_csv = Path(args.results_csv) if args.results_csv else search_dir / "cma_es_results.csv"
+    if args.combine_starts:
+        results_csv = combine_start_results(search_dir)
+    else:
+        results_csv = Path(args.results_csv) if args.results_csv else search_dir / "cma_es_results.csv"
     if not results_csv.exists():
         raise FileNotFoundError(f"{results_csv} was not found")
 
@@ -290,6 +418,7 @@ def main() -> int:
         encoding="utf-8",
     )
     save_plots(summary, out_dir)
+    save_parameter_pca_plot(results_csv, summary, out_dir)
 
     first = summary.iloc[0]
     last = summary.iloc[-1]

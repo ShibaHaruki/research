@@ -453,6 +453,7 @@ def save_first_sample_debug(
             start_time=debug_start_time,
             duration_ms=duration_ms,
             n_exc=len(objects["G_liq"][layer_index].exc),
+            n_neurons=len(objects["G_liq"][layer_index]),
         )
 
     save_spike_count_plot(
@@ -787,6 +788,17 @@ def run_liquid(cfg: dict | int | None = None, legacy_cfg: dict | None = None):
                     filter_gain=filter_gain,
                     opt_filter_gain=opt_filter_gain,
                 )
+                debug_input_current = build_input_current(
+                    in_data_0=in_data_0,
+                    t_array=t_array,
+                    dt=dt_s,
+                    input_filter_map=input_filter_map,
+                    filter_funcs=filter_funcs,
+                    sensor_gain=sensor_gain,
+                    filter_gain=filter_gain,
+                    opt_filter_gain=opt_filter_gain,
+                    include_opt_filter_gain=False,
+                )
 
                 input_ta = TimedArray(input_current.T, dt=float(net_cfg["dt_ms"]) * ms)
                 reset_liquid_state(objects, net_cfg)
@@ -909,7 +921,7 @@ def run_liquid(cfg: dict | int | None = None, legacy_cfg: dict | None = None):
                         mat,
                         sid,
                         t_array,
-                        input_current,
+                        debug_input_current,
                         input_filter_map,
                         objects,
                         duration_ms,

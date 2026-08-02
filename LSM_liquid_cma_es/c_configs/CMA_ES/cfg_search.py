@@ -4,15 +4,15 @@ PARAMS = [
 
     #{"name": "n_liq", "step": 10, "initial": 1000, "low": 100, "high": 100},
 
-    {"name": "r_inh_liq", "step": 0.01, "initial": 0.20, "low": 0.1, "high": 0.6},
+    {"name": "r_inh_liq", "step": 0.1, "initial": 0.20, "low": 0.1, "high": 0.5},
 
     {"name": "RI_p_E", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 0.30},
     {"name": "RI_p_I", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 0.30},
     {"name": "RI_gain_E", "step": 0.1, "initial": 0.10, "low": 1, "high": 10.0},
     {"name": "RI_gain_I", "step": 0.1, "initial": 0.10, "low": 1, "high": 10.0},
 
-    {"name": "SI_p_E", "step": 0.01, "initial": 0.05, "low": 0.1, "high": 0.30},
-    {"name": "SI_p_I", "step": 0.01, "initial": 0.05, "low": 0.1, "high": 0.30},
+    {"name": "SI_p_E", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 0.30},
+    {"name": "SI_p_I", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 0.30},
     {"name": "SI_gain_E", "step": 0.1, "initial": 0.10, "low": 1, "high": 10.0},
     {"name": "SI_gain_I", "step": 0.1, "initial": 0.10, "low": 1, "high": 10.0},
 
@@ -24,29 +24,29 @@ PARAMS = [
     {"name": "rec_p_ie", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 0.60},
     # {"name": "rec_p_ii", "step": 0.01, "initial": 0.00, "low": 0.0, "high": 0.0},
 
-    {"name": "rec_gain_ee", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 5.00},
-    {"name": "rec_gain_ei", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 5.00},
-    {"name": "rec_gain_ie", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 5.00},
-    # {"name": "rec_gain_ii", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 5.00},
+    {"name": "rec_gain_ee", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 10.00},
+    {"name": "rec_gain_ei", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 10.00},
+    {"name": "rec_gain_ie", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 10.00},
+    # {"name": "rec_gain_ii", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 10.00},
 
-    {"name": "lif_tau_exc", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 10.0},
-    {"name": "lif_tau_inh", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 10.0},
+    {"name": "lif_tau_exc", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 20.0},
+    {"name": "lif_tau_inh", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 20.0},
     # {"name": "lif_ref_exc", "step": "linear", "initial": 2.0, "low": 0.5, "high": 10.0},
     # {"name": "lif_ref_inh", "step": "linear", "initial": 2.0, "low": 0.5, "high": 10.0},
 
     {"name": "lif_bias", "step": 1, "initial": -65.0, "low": -70.0, "high": -40.0},
 
-    {"name": "syn_tau_r", "step": 0.5, "initial": 2.0, "low": 0.5, "high": 10.0},
-    {"name": "syn_tau_d", "step": 0.5, "initial": 30.0, "low": 5.0, "high": 100.0},
+    {"name": "syn_tau_r", "step": 1, "initial": 2.0, "low": 1, "high": 20.0},
+    {"name": "syn_tau_d", "step": 1, "initial": 30.0, "low": 5.0, "high": 100.0},
 ]
 
 
 OBJECTIVE_DEFAULTS = {
     "metric": "accuracy8_overall",
-    "α": 100.0,
-    "β": 100.0,
-    "γ": 100.0,
-    "δ": 100.0,
+    "α": 1.0,
+    "β": 1.0,
+    "γ": 1.0,
+    "δ": 1.0,
     "ε": 1.0,
     "κ": 1000.0,
 }
@@ -60,8 +60,8 @@ OBJECTIVE_DEFAULTS = {
 
 # CMA-ES本体のパラメータ
 CMA_ES_DEFAULTS = {
-    "generations": 2,                #世代数 20
-    "population_size": 2,            #個体数 (推奨 λ=4+[3ln(パラメータ数)]) 100
+    "generations": 20,                #世代数 20
+    "population_size": 100,            #個体数 (推奨 λ=4+[3ln(パラメータ数)]) 100
     "sigma0": 0.50,                   #ステップサイズ
     "randomize_initial_center": True, #初期中心をランダム化
 }
@@ -86,7 +86,7 @@ SEARCH_OTHER_DEFAULTS = {
     
     "jobs": None, #1世代あたりの並列計算する数。Noneなら自動でCPUコア数に合わせる
 
-    "n_starts": 1,# 異なる初期中心での探索回数 10
+    "n_starts": 10,# 異なる初期中心での探索回数 10
     "start_jobs": 1, #異なる初期中心で並列計算する数。
 
     "search_name": "liquid_search001",
