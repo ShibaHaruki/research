@@ -8,6 +8,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -46,6 +47,14 @@ from f_run.run_random_neuron_accuracy import evaluate_random_neuron_accuracy
 RUN_CFG = getattr(cfg_run, "CFG_RUN", {})
 RESULTS_DIR = PROJECT_ROOT / RUN_CFG["RESULTS_DIR"]
 CMA_DIR = RESULTS_DIR / str(RUN_CFG.get("CMA_ES_RESULT_DIR", "cma_es_search"))
+
+
+def _max_process_workers() -> int:
+    """Return a platform-safe upper bound for ProcessPoolExecutor workers."""
+    cpu_count = os.cpu_count() or 1
+    if sys.platform.startswith("win"):
+        return min(cpu_count, 61)
+    return cpu_count
 
 
 def _positive_route_value(value: object) -> bool:
@@ -748,7 +757,7 @@ def run_one_cma_start(
             for candidate_index, x in enumerate(arx, start=1)
         ]
         results: list[dict] = []
-        jobs = max(1, min(int(args.jobs), len(payloads)))
+        jobs = max(1, min(int(args.jobs), len(payloads), _max_process_workers()))
         if jobs == 1:
             for payload in payloads:
                 result = evaluate_candidate_worker(payload)
@@ -844,7 +853,7 @@ def parse_args() -> argparse.Namespace:
         "--neurons",
         type=str,
         default=SEARCH_DEFAULTS["neurons"],
-        help="Accuracy neurons: count, ratio (e.g. 0.25), percentage (25%), or 'all'.",
+        help="Accuracy neurons: count, ratio (e.g. 0.25), percentage (25%%), or 'all'.",
     )
     parser.add_argument(
         "--neuron-selection-repeats",
@@ -956,7 +965,20 @@ def main() -> int:
     if int(args.start_jobs) <= 0:
         raise ValueError("--start-jobs must be positive")
     if args.jobs is None:
-        args.jobs = int(args.population_size)
+        args.jobs = min(int(args.population_size), _max_process_workers())
+    else:
+        args.jobs = min(int(args.jobs), _max_process_workers())
+
+    start_workers = max(
+        1,
+        min(int(args.start_jobs), int(args.n_starts), _max_process_workers()),
+    )
+    print(
+        "[parallel] candidate_workers="
+        f"{int(args.jobs)} population_size={int(args.population_size)} "
+        f"start_workers={start_workers} n_starts={int(args.n_starts)}",
+        flush=True,
+    )
 
     search_dir = CMA_DIR / args.search_name
     search_dir.mkdir(parents=True, exist_ok=True)
@@ -996,7 +1018,7 @@ def main() -> int:
 
     try:
         start_results: list[dict] = []
-        start_jobs = max(1, min(int(args.start_jobs), len(payloads)))
+        start_jobs = max(1, min(int(args.start_jobs), len(payloads), _max_process_workers()))
         if start_jobs == 1:
             for payload in payloads:
                 start_results.append(run_one_cma_start_worker(payload))

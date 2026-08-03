@@ -61,14 +61,14 @@ OBJECTIVE_DEFAULTS = {
 # CMA-ES本体のパラメータ
 CMA_ES_DEFAULTS = {
     "generations": 20,                #世代数 20
-    "population_size": 100,            #個体数 (推奨 λ=4+[3ln(パラメータ数)]) 100
+    "population_size": 30,            #個体数 (推奨 λ=4+[3ln(パラメータ数)]) 100
     "sigma0": 0.50,                   #ステップサイズ
     "randomize_initial_center": True, #初期中心をランダム化
 }
 
 # 評価条件
 ACCURACY_DEFAULTS ={
-    "test_size": 0.20, #testの割合
+    "test_size": 0.30, #testの割合
     "fold": 10,       #hold回数
     "t_n_ms": 25.0,    #分割幅(ms)
 
@@ -81,17 +81,17 @@ ACCURACY_DEFAULTS["hold"] = 10
 
 SEARCH_OTHER_DEFAULTS = {
     
-    "brian_codegen_target": "numpy", # or cyhton
+    "brian_codegen_target": "numpy", # numpy or cython
     "seed": 0,
     
     "jobs": None, #1世代あたりの並列計算する数。Noneなら自動でCPUコア数に合わせる
 
-    "n_starts": 10,# 異なる初期中心での探索回数 10
+    "n_starts": 5,# 異なる初期中心での探索回数 10
     "start_jobs": 1, #異なる初期中心で並列計算する数。
 
     "search_name": "liquid_search001",
 
-    "samples_per_class": 10,
+    "samples_per_class": 50,
     "internal_state_bin_ms": 1.0,
 
     "share_filter_input_params_across_sensors": True,  
