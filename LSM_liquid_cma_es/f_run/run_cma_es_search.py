@@ -632,7 +632,7 @@ def cma_es_ask_tell(
 def build_search_settings(args: argparse.Namespace) -> dict:
     return {
         "objective": (
-        "-α*A + β*Var(A) + γ*(S/κ) + δ*R_silent"
+            "-α*A + β*Var(A) + γ*(S/κ) + δ*R_silent"
         ),
         "α": float(args.α),
         "β": float(args.β),

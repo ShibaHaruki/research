@@ -100,7 +100,8 @@ def main() -> int:
     }
 
     print(f"[best-params] loaded: {args.best_params}")
-    print(f"[best-params] n_liq={int(params['n_liq'])}")
+    n_liq = params.get("n_liq", cfg["network"]["N_liq"][0])
+    print(f"[best-params] n_liq={int(n_liq)}")
     print(f"[best-params] samples_per_class={int(args.samples_per_class)}")
     print(f"[best-params] pca_max_samples_per_class={args.pca_max_samples_per_class}")
     print(run_liquid(cfg))
