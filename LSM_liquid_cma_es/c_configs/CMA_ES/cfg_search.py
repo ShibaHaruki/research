@@ -29,7 +29,7 @@ PARAMS = [
     {"name": "rec_gain_ie", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 10.00},
     # {"name": "rec_gain_ii", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 10.00},
 
-    {"name": "lif_tau_exc", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 20.0},
+    #{"name": "lif_tau_exc", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 20.0},
     {"name": "lif_tau_inh", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 20.0},
     # {"name": "lif_ref_exc", "step": "linear", "initial": 2.0, "low": 0.5, "high": 10.0},
     # {"name": "lif_ref_inh", "step": "linear", "initial": 2.0, "low": 0.5, "high": 10.0},
