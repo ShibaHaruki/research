@@ -77,7 +77,7 @@ ACCURACY_DEFAULTS ={
 }
 
 # 実行・並列計算条件
-ACCURACY_DEFAULTS["hold"] = 16
+ACCURACY_DEFAULTS["hold"] = 10
 
 SEARCH_OTHER_DEFAULTS = {
     
@@ -86,10 +86,10 @@ SEARCH_OTHER_DEFAULTS = {
     
     "jobs": None, #1世代あたりの並列計算する数。Noneなら自動でCPUコア数に合わせる
 
-    "n_starts": 5,# 異なる初期中心での探索回数 10
+    "n_starts": 2,# 異なる初期中心での探索回数 
     "start_jobs": 1, #異なる初期中心で並列計算する数。
 
-    "search_name": "liquid_search001",
+    "search_name": "liquid_search002",
 
     "samples_per_class": 50,
     "internal_state_bin_ms": 1.0,
