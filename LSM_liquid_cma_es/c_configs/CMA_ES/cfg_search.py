@@ -34,7 +34,7 @@ PARAMS = [
     # {"name": "lif_ref_exc", "step": "linear", "initial": 2.0, "low": 0.5, "high": 10.0},
     # {"name": "lif_ref_inh", "step": "linear", "initial": 2.0, "low": 0.5, "high": 10.0},
 
-    {"name": "lif_bias", "step": 1, "initial": -65.0, "low": -70.0, "high": -40.0},
+    {"name": "lif_bias", "step": 1, "initial": -65.0, "low": -70.0, "high": -20.0},
 
     {"name": "syn_tau_r", "step": 1, "initial": 2.0, "low": 1, "high": 20.0},
     {"name": "syn_tau_d", "step": 1, "initial": 30.0, "low": 5.0, "high": 100.0},
@@ -60,7 +60,7 @@ OBJECTIVE_DEFAULTS = {
 
 # CMA-ES本体のパラメータ
 CMA_ES_DEFAULTS = {
-    "generations": 20,                #世代数 20
+    "generations": 30,                #世代数 20
     "population_size": 30,            #個体数 (推奨 λ=4+[3ln(パラメータ数)]) 100
     "sigma0": 0.50,                   #ステップサイズ
     "randomize_initial_center": True, #初期中心をランダム化
@@ -77,7 +77,7 @@ ACCURACY_DEFAULTS ={
 }
 
 # 実行・並列計算条件
-ACCURACY_DEFAULTS["hold"] = 10
+ACCURACY_DEFAULTS["hold"] = 16
 
 SEARCH_OTHER_DEFAULTS = {
     
