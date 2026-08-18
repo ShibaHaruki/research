@@ -95,7 +95,9 @@ def build_generation_summary(
         "accuracy_variance_contribution": (
             "accuracy8_overall_variance", weights["beta"]
         ),
-        "spike_penalty_contribution": ("spike_ratio", weights["gamma"]),
+        "firing_rate_target_contribution": (
+            "firing_rate_error", weights["gamma"]
+        ),
         "silent_penalty_contribution": (
             "silent_neuron_fraction", weights["delta"]
         ),
@@ -114,6 +116,8 @@ def build_generation_summary(
         "fisher_ratio_DR_mean", "fisher_ratio_DR_std", "spike_base",
         "trace_Sb_mean", "trace_Sw_mean",
         "spike_ratio", "mean_total_spikes_per_trial", "std_total_spikes_per_trial",
+        "mean_firing_rate_hz", "std_firing_rate_hz", "target_firing_rate_hz",
+        "firing_rate_error",
         "total_spikes_all_trials", "silent_neuron_count", "total_neuron_count",
         "active_neuron_count", "silent_neuron_fraction", "n_spike_trials",
         "n_activity_trials", "n_activity_mismatched_shapes",
@@ -157,6 +161,8 @@ def build_generation_summary(
             "fisher_ratio_DR_std",
             "mean_total_spikes_per_trial",
             "spike_ratio",
+            "mean_firing_rate_hz",
+            "firing_rate_error",
             "silent_neuron_fraction",
         ):
             if metric in group.columns:
@@ -213,7 +219,7 @@ def save_plots(summary: pd.DataFrame, out_dir: Path) -> None:
     component_plots = [
         ("accuracy_contribution", "Accuracy contribution"),
         ("accuracy_variance_contribution", "Accuracy variance contribution"),
-        ("spike_penalty_contribution", "Spike penalty contribution"),
+        ("firing_rate_target_contribution", "Firing-rate target contribution"),
         ("silent_penalty_contribution", "Silent-neuron penalty contribution"),
     ]
     component_axes = list(axes.flat[1:])
@@ -254,6 +260,8 @@ def save_plots(summary: pd.DataFrame, out_dir: Path) -> None:
             "fisher_ratio_DR_std", "accuracy_variance_contribution",
             "accuracy_contribution",
             "spike_penalty_contribution", "silent_penalty_contribution",
+            "firing_rate_target_contribution", "mean_firing_rate_hz",
+            "firing_rate_error",
         }
     )
     if parameter_columns:
@@ -301,6 +309,8 @@ def save_parameter_pca_plot(
             "spike_ratio", "silent_neuron_fraction",
             "accuracy_contribution", "accuracy_variance_contribution",
             "spike_penalty_contribution", "silent_penalty_contribution",
+            "firing_rate_target_contribution", "mean_firing_rate_hz",
+            "firing_rate_error",
         }
         and column.removeprefix("mean_") in raw.columns
     ]

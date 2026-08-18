@@ -54,7 +54,7 @@ OBJECTIVE_DEFAULTS = {
 # 目的関数 =
 # − α × 精度
 # + β × 精度の分散
-# + γ × スパイク数 / κ
+# + γ × ((発火率 − 目標発火率) / 目標発火率)^2
 # + δ × 無活動ニューロン割合
 # − ε × Fisher比 
 
@@ -86,13 +86,19 @@ SEARCH_OTHER_DEFAULTS = {
     
     "jobs": None, #1世代あたりの並列計算する数。Noneなら自動でCPUコア数に合わせる
 
-    "n_starts": 2,# 異なる初期中心での探索回数 
+    "n_starts": 1,# 異なる初期中心での探索回数 
     "start_jobs": 1, #異なる初期中心で並列計算する数。
 
-    "search_name": "liquid_search002",
+    "search_name": "liquid_search003",
 
     "samples_per_class": 50,
     "internal_state_bin_ms": 1.0,
+
+    # Silent-neuron metric: evaluate one trial per material and require this
+    # many actual spikes from a neuron to count it as active.
+    "silent_min_spikes_per_neuron": 1,
+    "silent_trials_per_material": 1,
+    "target_firing_rate_hz": 20.0,
 
     "share_filter_input_params_across_sensors": True,  
     "search_input_filters": ["RI", "SI"], #["RI", "SI", "USI", "merkel", "meissner"]
