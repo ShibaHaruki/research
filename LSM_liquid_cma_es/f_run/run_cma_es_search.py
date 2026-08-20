@@ -334,6 +334,12 @@ def collect_spike_count_metrics(
 ) -> dict:
     per_trial = []
     firing_rates = []
+    firing_rates_exc = []
+    firing_rates_inh = []
+    exc_spike_counts = []
+    inh_spike_counts = []
+    exc_neuron_counts = []
+    inh_neuron_counts = []
     material_counts = {}
     for material_dir in sorted(Path(internal_state_dir).iterdir()):
         if not material_dir.is_dir():
@@ -355,12 +361,32 @@ def collect_spike_count_metrics(
                 npz_path = material_dir / str(combined_name)
                 if npz_path.exists():
                     with np.load(npz_path) as data:
-                        n_neurons = int(np.asarray(data["x_state"]).shape[0])
+                        x_state = np.asarray(data["x_state"])
+                        n_neurons = int(x_state.shape[0])
+                        typ = np.asarray(data["typ"], dtype=np.int32)
+                        spike_i = np.asarray(
+                            data["spike_i"] if "spike_i" in data.files else (),
+                            dtype=np.int64,
+                        )
                         t_ms = np.asarray(data["t_ms"], dtype=float)
                         bin_ms = float(np.asarray(data["bin_ms"])[0]) if "bin_ms" in data.files else 1.0
                     duration_ms = max(float(t_ms.size) * bin_ms, 1e-9)
                     firing_rates.append(
                         float(total_spikes) / max(n_neurons, 1) / (duration_ms / 1000.0)
+                    )
+                    n_exc = max(int(np.count_nonzero(typ == 1)), 1)
+                    n_inh = max(int(np.count_nonzero(typ == -1)), 1)
+                    exc_spikes = int(np.count_nonzero(spike_i < n_exc))
+                    inh_spikes = int(np.count_nonzero(spike_i >= n_exc))
+                    exc_spike_counts.append(float(exc_spikes))
+                    inh_spike_counts.append(float(inh_spikes))
+                    exc_neuron_counts.append(float(n_exc))
+                    inh_neuron_counts.append(float(n_inh))
+                    firing_rates_exc.append(
+                        float(exc_spikes) / n_exc / (duration_ms / 1000.0)
+                    )
+                    firing_rates_inh.append(
+                        float(inh_spikes) / n_inh / (duration_ms / 1000.0)
                     )
         if material_spikes:
             material_counts[material_dir.name] = {
@@ -385,6 +411,18 @@ def collect_spike_count_metrics(
         "std_firing_rate_hz": float(
             np.std(firing_rates, ddof=1 if len(firing_rates) > 1 else 0)
         ) if firing_rates else 0.0,
+        "mean_firing_rate_exc_hz": float(np.mean(firing_rates_exc)) if firing_rates_exc else 0.0,
+        "mean_firing_rate_inh_hz": float(np.mean(firing_rates_inh)) if firing_rates_inh else 0.0,
+        "mean_exc_spikes_per_trial": float(np.mean(exc_spike_counts)) if exc_spike_counts else 0.0,
+        "mean_inh_spikes_per_trial": float(np.mean(inh_spike_counts)) if inh_spike_counts else 0.0,
+        "mean_exc_neuron_count": float(np.mean(exc_neuron_counts)) if exc_neuron_counts else 0.0,
+        "mean_inh_neuron_count": float(np.mean(inh_neuron_counts)) if inh_neuron_counts else 0.0,
+        "std_firing_rate_exc_hz": float(
+            np.std(firing_rates_exc, ddof=1 if len(firing_rates_exc) > 1 else 0)
+        ) if firing_rates_exc else 0.0,
+        "std_firing_rate_inh_hz": float(
+            np.std(firing_rates_inh, ddof=1 if len(firing_rates_inh) > 1 else 0)
+        ) if firing_rates_inh else 0.0,
         "spike_counts_by_material": material_counts,
     }
 
@@ -394,20 +432,25 @@ def collect_neuron_activity_metrics(
     *,
     max_samples_per_class: int | None = None,
     min_spikes_per_neuron: int = 1,
+    min_trial_fraction: float = 0.125,
     trials_per_material: int = 1,
 ) -> dict:
     """Measure neurons active above a spike threshold in representative trials.
 
-    One trial per material is used by default.  A neuron is active when its
-    raw spike count in each selected material trial reaches the threshold.
-    This is deliberately different from the old ``ever active`` OR metric.
+    A neuron is active when its raw spike count reaches the threshold in at
+    least one trial across all selected materials and samples. A neuron that
+    never spikes anywhere is counted as silent.
     """
     if int(min_spikes_per_neuron) < 1:
         raise ValueError("min_spikes_per_neuron must be at least 1")
-    if int(trials_per_material) < 1:
-        raise ValueError("trials_per_material must be at least 1")
+    if not 0.0 < float(min_trial_fraction) <= 1.0:
+        raise ValueError("min_trial_fraction must be in (0, 1]")
+    if int(trials_per_material) < 0:
+        raise ValueError("trials_per_material must be non-negative")
 
     active_by_material: list[np.ndarray] = []
+    activity_trials: list[np.ndarray] = []
+    typ_reference: np.ndarray | None = None
     n_trials = 0
     n_mismatched = 0
     for material_dir in sorted(Path(internal_state_dir).iterdir()):
@@ -416,7 +459,8 @@ def collect_neuron_activity_metrics(
         manifests = sorted(material_dir.glob("*_internal_state_manifest.json"))
         if max_samples_per_class is not None:
             manifests = manifests[: int(max_samples_per_class)]
-        manifests = manifests[: int(trials_per_material)]
+        if int(trials_per_material) > 0:
+            manifests = manifests[: int(trials_per_material)]
         material_active: np.ndarray | None = None
         for manifest_path in manifests:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -428,6 +472,8 @@ def collect_neuron_activity_metrics(
                 continue
             with np.load(npz_path) as data:
                 x_state = np.asarray(data["x_state"])
+                if "typ" in data.files and typ_reference is None:
+                    typ_reference = np.asarray(data["typ"], dtype=np.int32).reshape(-1)
                 spike_i = np.asarray(
                     data["spike_i"] if "spike_i" in data.files else (),
                     dtype=np.int64,
@@ -443,11 +489,12 @@ def collect_neuron_activity_metrics(
             if material_active is None:
                 material_active = trial_active.astype(bool, copy=True)
             elif material_active.shape == trial_active.shape:
-                material_active &= trial_active
+                material_active |= trial_active
             else:
                 n_mismatched += 1
                 n = min(material_active.size, trial_active.size)
-                material_active[:n] &= trial_active[:n]
+                material_active[:n] |= trial_active[:n]
+            activity_trials.append(trial_active.astype(bool, copy=True))
             n_trials += 1
         if material_active is not None:
             active_by_material.append(material_active)
@@ -457,23 +504,46 @@ def collect_neuron_activity_metrics(
             f"No combined internal-state npz files found under {internal_state_dir}"
         )
 
-    active_all_materials = active_by_material[0].copy()
-    for material_active in active_by_material[1:]:
-        n = min(active_all_materials.size, material_active.size)
-        active_all_materials[:n] &= material_active[:n]
+    active_all_materials = np.zeros_like(active_by_material[0], dtype=bool)
+    activity_counts = np.zeros(active_all_materials.size, dtype=np.int64)
+    for trial_active in activity_trials:
+        n = min(activity_counts.size, trial_active.size)
+        activity_counts[:n] += trial_active[:n]
+    activity_fraction = activity_counts / max(len(activity_trials), 1)
+    active_all_materials = activity_fraction >= float(min_trial_fraction)
     silent = ~active_all_materials
     silent_count = int(np.count_nonzero(silent))
     total = int(active_all_materials.size)
+    if typ_reference is not None and typ_reference.size >= total:
+        typ = typ_reference[:total]
+        exc_mask = typ == 1
+        inh_mask = typ == -1
+        silent_exc_count = int(np.count_nonzero(silent & exc_mask))
+        silent_inh_count = int(np.count_nonzero(silent & inh_mask))
+        exc_total = int(np.count_nonzero(exc_mask))
+        inh_total = int(np.count_nonzero(inh_mask))
+    else:
+        silent_exc_count = 0
+        silent_inh_count = 0
+        exc_total = 0
+        inh_total = 0
     return {
         "n_activity_trials": int(n_trials),
         "n_activity_materials": int(len(active_by_material)),
         "activity_trials_per_material": int(trials_per_material),
         "activity_min_spikes_per_neuron": int(min_spikes_per_neuron),
+        "silent_min_trial_fraction": float(min_trial_fraction),
         "n_activity_mismatched_shapes": int(n_mismatched),
         "active_neuron_count": int(np.count_nonzero(active_all_materials)),
         "silent_neuron_count": silent_count,
         "total_neuron_count": total,
         "silent_neuron_fraction": float(silent_count / max(total, 1)),
+        "silent_neuron_count_exc": silent_exc_count,
+        "silent_neuron_count_inh": silent_inh_count,
+        "total_neuron_count_exc": exc_total,
+        "total_neuron_count_inh": inh_total,
+        "silent_neuron_fraction_exc": float(silent_exc_count / max(exc_total, 1)),
+        "silent_neuron_fraction_inh": float(silent_inh_count / max(inh_total, 1)),
     }
 
 
@@ -486,25 +556,35 @@ def _score(
     γ: float,
     κ: float,
     δ: float,
-    target_firing_rate_hz: float,
 ) -> float:
     acc = float(metrics[f"{metric}_mean"])
     acc_std = float(metrics[f"{metric}_std"])
     acc_variance = acc_std * acc_std
-    firing_rate = float(metrics["mean_firing_rate_hz"])
-    target_firing_rate_hz = float(target_firing_rate_hz)
-    silent_fraction = float(metrics.get("silent_neuron_fraction", 0.0))
-    if not math.isfinite(firing_rate):
-        raise ValueError(f"mean_firing_rate_hz is not finite: {firing_rate}")
-    if target_firing_rate_hz <= 0:
-        raise ValueError(
-            f"target_firing_rate_hz must be positive, got {target_firing_rate_hz}"
-        )
-    firing_rate_error = ((firing_rate - target_firing_rate_hz) / target_firing_rate_hz) ** 2
+    mean_total_spikes = float(metrics["mean_total_spikes_per_trial"])
+    spike_limit = float(metrics["spike_limit"])
+    mean_exc_spikes = float(metrics["mean_exc_spikes_per_trial"])
+    mean_inh_spikes = float(metrics["mean_inh_spikes_per_trial"])
+    mean_exc_neurons = float(metrics["mean_exc_neuron_count"])
+    mean_inh_neurons = float(metrics["mean_inh_neuron_count"])
+    silent_fraction = float(metrics.get("objective_silent_fraction", 0.0))
+    if not math.isfinite(mean_total_spikes):
+        raise ValueError(f"mean_total_spikes_per_trial is not finite: {mean_total_spikes}")
+    if spike_limit <= 0:
+        raise ValueError("spike_limit must be positive")
+    total_typed_neurons = mean_exc_neurons + mean_inh_neurons
+    if total_typed_neurons <= 0:
+        raise ValueError("E/I neuron counts must be positive")
+    exc_limit = spike_limit * mean_exc_neurons / total_typed_neurons
+    inh_limit = spike_limit * mean_inh_neurons / total_typed_neurons
+    # Split the total spike budget according to the E/I neuron ratio.
+    spike_limit_penalty = 0.5 * (
+        max(0.0, (mean_exc_spikes - exc_limit) / exc_limit) ** 2
+        + max(0.0, (mean_inh_spikes - inh_limit) / inh_limit) ** 2
+    )
     return float(
         -float(α) * acc
         + float(β) * acc_variance
-        + float(γ) * firing_rate_error
+        + float(γ) * spike_limit_penalty
         + float(δ) * silent_fraction
     )
 
@@ -580,6 +660,7 @@ def evaluate_candidate(
             internal_state_dir,
             max_samples_per_class=int(args.samples_per_class),
             min_spikes_per_neuron=int(args.silent_min_spikes_per_neuron),
+            min_trial_fraction=float(args.silent_min_trial_fraction),
             trials_per_material=int(args.silent_trials_per_material),
         )
     )
@@ -593,11 +674,25 @@ def evaluate_candidate(
         metrics.get("accuracy3_fold_variance_mean", 0.0)
     )
     metrics["spike_base"] = float(args.κ)
-    metrics["target_firing_rate_hz"] = float(args.target_firing_rate_hz)
-    metrics["firing_rate_error"] = float(
-        (metrics["mean_firing_rate_hz"] - metrics["target_firing_rate_hz"])
-        / metrics["target_firing_rate_hz"]
-    ) ** 2
+    metrics["spike_limit"] = float(args.spike_limit)
+    metrics["objective_silent_fraction"] = float(
+        max(
+            metrics.get("silent_neuron_fraction_exc", 0.0),
+            metrics.get("silent_neuron_fraction_inh", 0.0),
+        )
+    )
+    typed_neurons = metrics["mean_exc_neuron_count"] + metrics["mean_inh_neuron_count"]
+    metrics["exc_spike_limit"] = float(args.spike_limit * metrics["mean_exc_neuron_count"] / typed_neurons)
+    metrics["inh_spike_limit"] = float(args.spike_limit * metrics["mean_inh_neuron_count"] / typed_neurons)
+    # This is an upper-limit penalty: rates below the limits contribute zero.
+    metrics["spike_limit_penalty"] = float(
+        0.5 * (
+            max(0.0, (metrics["mean_exc_spikes_per_trial"] - metrics["exc_spike_limit"])
+                / metrics["exc_spike_limit"]) ** 2
+            + max(0.0, (metrics["mean_inh_spikes_per_trial"] - metrics["inh_spike_limit"])
+                / metrics["inh_spike_limit"]) ** 2
+        )
+    )
     metrics["spike_ratio"] = float(
         metrics["mean_total_spikes_per_trial"] / float(args.κ)
     )
@@ -610,10 +705,10 @@ def evaluate_candidate(
     metrics["objective_accuracy_contribution"] = -alpha * accuracy_value
     metrics["objective_variance_contribution"] = beta * accuracy_variance
     metrics["objective_spike_contribution"] = gamma * float(
-        metrics["firing_rate_error"]
+        metrics["spike_limit_penalty"]
     )
     metrics["objective_silent_contribution"] = delta * float(
-        metrics["silent_neuron_fraction"]
+        metrics["objective_silent_fraction"]
     )
     # DR is retained as a diagnostic metric, but excluded from optimization.
     metrics["objective_fisher_contribution"] = 0.0
@@ -625,7 +720,6 @@ def evaluate_candidate(
         γ=float(args.γ),
         κ=float(args.κ),
         δ=float(args.δ),
-        target_firing_rate_hz=float(metrics["target_firing_rate_hz"]),
     )
     result = {
         "generation": generation,
@@ -699,14 +793,13 @@ def cma_es_ask_tell(
 def build_search_settings(args: argparse.Namespace) -> dict:
     return {
         "objective": (
-            "-α*A + β*Var(A) + γ*((r-r_target)/r_target)^2 + δ*R_silent"
+            "-α*A + β*Var(A) + γ*P_spike_limit + δ*max(R_silent_E, R_silent_I)"
         ),
         "α": float(args.α),
         "β": float(args.β),
         "γ": float(args.γ),
         "δ": float(args.δ),
         "κ": float(args.κ),
-        "target_firing_rate_hz": float(args.target_firing_rate_hz),
         "spike_definition": "mean total liquid spikes per trial over all evaluated trials",
         "metric": str(args.metric),
         "evaluation_neurons": _neuron_limit(args.neurons) or "all",
@@ -715,6 +808,7 @@ def build_search_settings(args: argparse.Namespace) -> dict:
         "test_size": float(args.test_size),
         "hold": int(args.hold),
         "silent_min_spikes_per_neuron": int(args.silent_min_spikes_per_neuron),
+        "silent_min_trial_fraction": float(args.silent_min_trial_fraction),
         "silent_trials_per_material": int(args.silent_trials_per_material),
         "T_n_ms": float(args.t_n_ms),
         "brian_codegen_target": str(args.brian_codegen_target),
@@ -814,10 +908,17 @@ def run_one_cma_start(
             f"acc8={row.get('accuracy8_overall_mean')} "
             f"var8={row.get('accuracy8_overall_variance')} "
             f"rate={row.get('mean_firing_rate_hz')}Hz "
-            f"silent={row.get('silent_neuron_fraction')} "
+            f"E={row.get('mean_firing_rate_exc_hz')}Hz "
+            f"I={row.get('mean_firing_rate_inh_hz')}Hz "
+            f"spikes_E={metrics.get('mean_exc_spikes_per_trial')}/"
+            f"{metrics.get('exc_spike_limit')} "
+            f"spikes_I={metrics.get('mean_inh_spikes_per_trial')}/"
+            f"{metrics.get('inh_spike_limit')} "
+            f"silent(E={metrics.get('silent_neuron_fraction_exc')}, "
+            f"I={metrics.get('silent_neuron_fraction_inh')}) "
             f"weighted(acc8={metrics.get('objective_accuracy_contribution')}, "
             f"var8={metrics.get('objective_variance_contribution')}, "
-            f"rate_target={metrics.get('objective_spike_contribution')}, "
+            f"spike_limit={metrics.get('objective_spike_contribution')}, "
             f"silent={metrics.get('objective_silent_contribution')})"
         )
 
@@ -975,6 +1076,12 @@ def parse_args() -> argparse.Namespace:
         default=OBJECTIVE_DEFAULTS["κ"],
     )
     parser.add_argument(
+        "--spike-limit",
+        type=float,
+        default=SEARCH_DEFAULTS["spike_limit"],
+        help="Allow this many mean total spikes per trial before penalty.",
+    )
+    parser.add_argument(
         "--silent-weight",
         dest="δ",
         type=float,
@@ -991,26 +1098,16 @@ def parse_args() -> argparse.Namespace:
         help="Minimum actual spikes per neuron in each selected material trial.",
     )
     parser.add_argument(
-        "--target-firing-rate-hz",
+        "--silent-min-trial-fraction",
         type=float,
-        default=SEARCH_DEFAULTS["target_firing_rate_hz"],
-        help="Target mean liquid firing rate in Hz.",
+        default=SEARCH_DEFAULTS["silent_min_trial_fraction"],
+        help="Minimum fraction of trials in which a neuron must spike to be active.",
     )
     parser.add_argument(
         "--silent-trials-per-material",
         type=int,
         default=SEARCH_DEFAULTS["silent_trials_per_material"],
-        help="Number of representative trials used per material for silent metric.",
-    )
-    parser.add_argument(
-        "--fisher-weight",
-        "--gamma",
-        dest="ε",
-        type=float,
-        default=OBJECTIVE_DEFAULTS["ε"],
-        help=(
-            "Weight for the Fisher ratio reward. Use 0 to ignore it."
-        ),
+        help="Trials per material for silent metric; 0 uses all available trials.",
     )
     parser.add_argument(
         "--search-name",
@@ -1048,8 +1145,8 @@ def main() -> int:
     args = parse_args()
     if float(args.κ) <= 0:
         raise ValueError("--spike-base must be positive")
-    if float(args.target_firing_rate_hz) <= 0:
-        raise ValueError("--target-firing-rate-hz must be positive")
+    if float(args.spike_limit) <= 0:
+        raise ValueError("--spike-limit must be positive")
     if int(args.n_starts) <= 0:
         raise ValueError("--n-starts must be positive")
     if int(args.start_jobs) <= 0:

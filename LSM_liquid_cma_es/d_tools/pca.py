@@ -370,6 +370,9 @@ def _save_explained_variance(out_dir: Path, pca_result: dict) -> tuple[Path, Pat
     df.to_csv(csv_fp, index=False)
 
     plot_fp = Path(out_dir) / "pca_explained_variance.png"
+    component_heatmap_dir = Path(out_dir) / "pca_component_heatmaps"
+    component_heatmap_dir.mkdir(parents=True, exist_ok=True)
+    component_heatmap_plot_fp = component_heatmap_dir / "pca_explained_variance.png"
     plt = try_import_pyplot()
     if plt is None:
         return csv_fp, plot_fp
@@ -388,6 +391,7 @@ def _save_explained_variance(out_dir: Path, pca_result: dict) -> tuple[Path, Pat
     plt.legend()
     plt.tight_layout()
     plt.savefig(plot_fp, dpi=150)
+    plt.savefig(component_heatmap_plot_fp, dpi=150)
     plt.close()
     return csv_fp, plot_fp
 
