@@ -1,0 +1,8 @@
+predictor,outcome,n,pearson_r,pearson_p,note
+mean_rate_hz,accuracy8,30,-0.8355590759018587,9.190536362458084e-09,"Pooled across rules and repetitions; association, not causal evidence."
+temporal_sparsity,accuracy8,30,0.8355590759018585,9.190536362458241e-09,"Pooled across rules and repetitions; association, not causal evidence."
+active_neuron_fraction,accuracy8,30,0.3325847009867364,0.07253424256919282,"Pooled across rules and repetitions; association, not causal evidence."
+effective_dimension,accuracy8,30,0.7532527287050619,1.5575754788903882e-06,"Pooled across rules and repetitions; association, not causal evidence."
+mean_abs_neuron_correlation,accuracy8,30,-0.6476915093052508,0.00010916184840340857,"Pooled across rules and repetitions; association, not causal evidence."
+class_selectivity,accuracy8,30,0.08872023781290839,0.6410626185847036,"Pooled across rules and repetitions; association, not causal evidence."
+feature_separability,accuracy8,30,-0.24106267668066098,0.19939596091678127,"Pooled across rules and repetitions; association, not causal evidence."

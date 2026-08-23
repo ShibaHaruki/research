@@ -17,7 +17,7 @@ CFG_NETWORK = {
     # 1) neuron groups
     # Layer counts are inferred from len(N_liq).
     "N_liq": [100],
-    "r_inh_liq": 0.5,
+    "r_inh_liq": 0.2,
 
     # Optional shared input settings. When enabled, the p/scale values below
     # are applied to every sensor route using the same filter name.
