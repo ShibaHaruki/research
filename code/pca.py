@@ -80,8 +80,8 @@ def find_npy_path(rule_name: str, rep: int) -> Path:
     return candidates[-1]
 
 
-def save_figure_pdf(base_path: Path):
-    plt.savefig(base_path.with_suffix(".pdf"), bbox_inches="tight")
+def save_figure_png(base_path: Path):
+    plt.savefig(base_path.with_suffix(".png"), dpi=300, bbox_inches="tight")
 
 
 def build_feature_matrix(s_for_cls, T_n):
@@ -187,17 +187,12 @@ def plot_pca_2d(Y_pca2, explained, display_names, sample_for_cls, title_name, ou
 
     plt.xlabel(f"PC1 ({explained[0] * 100:.2f}%)", fontsize=14)
     plt.ylabel(f"PC2 ({explained[1] * 100:.2f}%)", fontsize=14)
-    plt.title(
-        f"{title_name} | explained variance: "
-        f"PC1={explained[0] * 100:.2f}%, PC2={explained[1] * 100:.2f}%",
-        fontsize=15,
-    )
     plt.legend(fontsize=11, ncol=2)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
     plt.tight_layout()
 
-    save_figure_pdf(out_base_path)
+    save_figure_png(out_base_path)
     plt.close()
 
 
@@ -240,7 +235,7 @@ def plot_explained_variance(explained, title_name, out_base_path):
     ax.grid(axis="y", alpha=0.25)
     ax.legend(loc="upper right")
     fig.tight_layout()
-    fig.savefig(out_base_path.with_suffix(".pdf"), bbox_inches="tight")
+    fig.savefig(out_base_path.with_suffix(".png"), dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -307,10 +302,10 @@ def run_one_rule(rule_name: str, rep: int):
         out_dir=OUT_DIR / f"{rule_clean}_rep{rep}_pca_component_heatmaps",
     )
 
-    print("saved:", out_base_path.with_suffix(".pdf"))
+    print("saved:", out_base_path.with_suffix(".png"))
     print(
         "saved:",
-        (OUT_DIR / f"{rule_clean}_rep{rep}_pca_explained_variance").with_suffix(".pdf"),
+        (OUT_DIR / f"{rule_clean}_rep{rep}_pca_explained_variance").with_suffix(".png"),
     )
     print(
         "saved:",
