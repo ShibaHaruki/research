@@ -23,7 +23,7 @@ DISPLAY_NAMES = [
     "cork",
     "denim",
     "rubber bd.",
-    "japanese paper",
+    "Japanese paper",
     "wood bd."
 ]
 
