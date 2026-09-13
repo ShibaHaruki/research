@@ -88,7 +88,7 @@ def save_weights(rep: int,
 # =========================
 # Repeat settings
 # =========================
-N_REPEAT = 1
+N_REPEAT = 10
 BASE_SEED = 2
 N_EPOCH = 3
 N_TRAIN = 100
@@ -350,7 +350,6 @@ def run_once(rep: int):
 if __name__ == "__main__":
     for rep in range(1, N_REPEAT + 1):
         run_once(rep)
-
 
 
 

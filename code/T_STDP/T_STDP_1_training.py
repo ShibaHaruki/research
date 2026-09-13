@@ -133,7 +133,7 @@ def run_once(rep: int):
     wmin = -1.0
     wmax = 1.0
 
-    tau_s1 = 11.5 * ms
+    tau_s1 = 11.7 * ms
     tau_s2 = 15.0 * ms
     tau_t1 = 14.0 * ms
     tau_t2 = 15.0 * ms
@@ -373,4 +373,3 @@ def run_once(rep: int):
 if __name__ == "__main__":
     for rep in range(1, N_REPEAT + 1):
         run_once(rep)
-
