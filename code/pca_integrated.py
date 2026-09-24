@@ -8,6 +8,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+matplotlib.rcParams["pdf.use14corefonts"] = False
+
 from pca import (
     COLORS,
     DISPLAY_NAMES,
@@ -97,8 +101,8 @@ def plot_integrated(results, rep, output_path):
                 alpha=0.8,
                 label=DISPLAY_NAMES[class_index].replace("_", " "),
             )
-        scatter_ax.set_xlabel(f"PC1 ({result['explained'][0] * 100:.1f}%)", fontsize=14)
-        scatter_ax.set_ylabel(f"PC2 ({result['explained'][1] * 100:.1f}%)", fontsize=14)
+        scatter_ax.set_xlabel(f"PC1 ({result['explained'][0] * 100:.1f}%)", fontsize=16)
+        scatter_ax.set_ylabel(f"PC2 ({result['explained'][1] * 100:.1f}%)", fontsize=16)
         x_values = result["scores"][:, 0]
         y_values = result["scores"][:, 1]
         axis_span = max(float(np.ptp(x_values)), float(np.ptp(y_values)), 1.0) * 1.08
@@ -131,12 +135,12 @@ def plot_integrated(results, rep, output_path):
             1.04,
             method_name,
             transform=scatter_ax.transAxes,
-            fontsize=16,
+            fontsize=18,
             fontweight="bold",
             ha="center",
             va="bottom",
         )
-        scatter_ax.tick_params(labelsize=11)
+        scatter_ax.tick_params(labelsize=13)
         if legend_handles is None:
             legend_handles, legend_labels = scatter_ax.get_legend_handles_labels()
 
@@ -152,18 +156,18 @@ def plot_integrated(results, rep, output_path):
                 extent=(0, result["duration_ms"], result["n_neurons"], 0),
                 interpolation="nearest",
             )
-            heat_ax.set_xlabel("Time (ms)", fontsize=12)
+            heat_ax.set_xlabel("Time (ms)", fontsize=14)
             if column == 0:
-                heat_ax.set_ylabel("readout neuron", fontsize=12)
+                heat_ax.set_ylabel("readout neuron", fontsize=14)
             heat_ax.set_xticks(np.arange(0, result["duration_ms"] + 1, 100))
             heat_ax.set_yticks(np.arange(0, result["n_neurons"] + 1, 10))
-            heat_ax.tick_params(labelsize=10)
+            heat_ax.tick_params(labelsize=12)
             heat_ax.text(
                 0.02,
                 0.92,
                 f"PC{component + 1} ({result['explained'][component] * 100:.1f}%)",
                 transform=heat_ax.transAxes,
-                fontsize=11,
+                fontsize=13,
                 fontweight="bold",
                 va="top",
                 bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.72, "pad": 1.5},
@@ -180,7 +184,7 @@ def plot_integrated(results, rep, output_path):
         bbox_to_anchor=(0.5, 0.15),
         ncol=4,
         frameon=False,
-        fontsize=16,
+        fontsize=18,
         markerscale=2.0,
     )
 
@@ -194,8 +198,8 @@ def plot_integrated(results, rep, output_path):
         (colorbar_left, colorbar_bottom, 0.012, colorbar_top - colorbar_bottom)
     )
     colorbar = fig.colorbar(last_image, cax=colorbar_ax, orientation="vertical")
-    colorbar.set_label("PCA loading", fontsize=12)
-    colorbar.ax.tick_params(labelsize=10)
+    colorbar.set_label("PCA loading", fontsize=14)
+    colorbar.ax.tick_params(labelsize=12)
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
     pdf_path = output_path.with_suffix(".pdf")
     fig.savefig(pdf_path, bbox_inches="tight")
