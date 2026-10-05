@@ -566,7 +566,8 @@ def _score(
     mean_inh_spikes = float(metrics["mean_inh_spikes_per_trial"])
     mean_exc_neurons = float(metrics["mean_exc_neuron_count"])
     mean_inh_neurons = float(metrics["mean_inh_neuron_count"])
-    silent_fraction = float(metrics.get("objective_silent_fraction", 0.0))
+    silent_fraction_exc = float(metrics.get("silent_neuron_fraction_exc", 0.0))
+    silent_fraction_inh = float(metrics.get("silent_neuron_fraction_inh", 0.0))
     if not math.isfinite(mean_total_spikes):
         raise ValueError(f"mean_total_spikes_per_trial is not finite: {mean_total_spikes}")
     if spike_limit <= 0:
@@ -577,15 +578,16 @@ def _score(
     exc_limit = spike_limit * mean_exc_neurons / total_typed_neurons
     inh_limit = spike_limit * mean_inh_neurons / total_typed_neurons
     # Split the total spike budget according to the E/I neuron ratio.
-    spike_limit_penalty = 0.5 * (
+    spike_limit_penalty = (
         max(0.0, (mean_exc_spikes - exc_limit) / exc_limit) ** 2
         + max(0.0, (mean_inh_spikes - inh_limit) / inh_limit) ** 2
     )
+    silent_penalty = silent_fraction_exc ** 2 + silent_fraction_inh ** 2
     return float(
         -float(α) * acc
         + float(β) * acc_variance
         + float(γ) * spike_limit_penalty
-        + float(δ) * silent_fraction
+        + float(δ) * silent_penalty
     )
 
 
@@ -675,23 +677,19 @@ def evaluate_candidate(
     )
     metrics["spike_base"] = float(args.κ)
     metrics["spike_limit"] = float(args.spike_limit)
-    metrics["objective_silent_fraction"] = float(
-        max(
-            metrics.get("silent_neuron_fraction_exc", 0.0),
-            metrics.get("silent_neuron_fraction_inh", 0.0),
-        )
+    metrics["objective_silent_penalty"] = float(
+        metrics.get("silent_neuron_fraction_exc", 0.0) ** 2
+        + metrics.get("silent_neuron_fraction_inh", 0.0) ** 2
     )
     typed_neurons = metrics["mean_exc_neuron_count"] + metrics["mean_inh_neuron_count"]
     metrics["exc_spike_limit"] = float(args.spike_limit * metrics["mean_exc_neuron_count"] / typed_neurons)
     metrics["inh_spike_limit"] = float(args.spike_limit * metrics["mean_inh_neuron_count"] / typed_neurons)
     # This is an upper-limit penalty: rates below the limits contribute zero.
     metrics["spike_limit_penalty"] = float(
-        0.5 * (
-            max(0.0, (metrics["mean_exc_spikes_per_trial"] - metrics["exc_spike_limit"])
-                / metrics["exc_spike_limit"]) ** 2
-            + max(0.0, (metrics["mean_inh_spikes_per_trial"] - metrics["inh_spike_limit"])
-                / metrics["inh_spike_limit"]) ** 2
-        )
+        max(0.0, (metrics["mean_exc_spikes_per_trial"] - metrics["exc_spike_limit"])
+            / metrics["exc_spike_limit"]) ** 2
+        + max(0.0, (metrics["mean_inh_spikes_per_trial"] - metrics["inh_spike_limit"])
+            / metrics["inh_spike_limit"]) ** 2
     )
     metrics["spike_ratio"] = float(
         metrics["mean_total_spikes_per_trial"] / float(args.κ)
@@ -708,7 +706,7 @@ def evaluate_candidate(
         metrics["spike_limit_penalty"]
     )
     metrics["objective_silent_contribution"] = delta * float(
-        metrics["objective_silent_fraction"]
+        metrics["objective_silent_penalty"]
     )
     # DR is retained as a diagnostic metric, but excluded from optimization.
     metrics["objective_fisher_contribution"] = 0.0
@@ -793,7 +791,8 @@ def cma_es_ask_tell(
 def build_search_settings(args: argparse.Namespace) -> dict:
     return {
         "objective": (
-            "-α*A + β*Var(A) + γ*P_spike_limit + δ*max(R_silent_E, R_silent_I)"
+            "-α*A + β*Var(A) + γ*P_spike_limit "
+            "+ δ*(R_silent_E^2 + R_silent_I^2)"
         ),
         "α": float(args.α),
         "β": float(args.β),

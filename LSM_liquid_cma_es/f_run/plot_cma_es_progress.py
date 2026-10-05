@@ -99,7 +99,7 @@ def build_generation_summary(
             "spike_limit_penalty", weights["gamma"]
         ),
         "silent_penalty_contribution": (
-            "objective_silent_fraction", weights["delta"]
+            "objective_silent_penalty", weights["delta"]
         ),
     }
     for name, (source, weight) in component_sources.items():
@@ -128,7 +128,7 @@ def build_generation_summary(
         "silent_neuron_count_exc", "silent_neuron_count_inh",
         "total_neuron_count_exc", "total_neuron_count_inh",
         "silent_neuron_fraction_exc", "silent_neuron_fraction_inh",
-        "objective_silent_fraction",
+        "objective_silent_fraction", "objective_silent_penalty",
         "n_activity_trials", "n_activity_mismatched_shapes",
         "objective_accuracy_contribution", "objective_variance_contribution",
         "objective_spike_contribution", "objective_silent_contribution",
@@ -268,6 +268,7 @@ def save_plots(summary: pd.DataFrame, out_dir: Path) -> None:
             "accuracy8_overall_variance", "mean_total_spikes_per_trial",
             "spike_ratio", "silent_neuron_fraction_exc",
             "silent_neuron_fraction_inh", "objective_silent_fraction",
+            "objective_silent_penalty",
             "fisher_ratio_DR_mean", "accuracy8_overall_std", "accuracy3_overall_std",
             "fisher_ratio_DR_std", "accuracy_variance_contribution",
             "accuracy_contribution",
@@ -319,6 +320,7 @@ def save_parameter_pca_plot(
             "fisher_ratio_DR_std", "mean_total_spikes_per_trial",
             "spike_ratio", "silent_neuron_fraction_exc",
             "silent_neuron_fraction_inh", "objective_silent_fraction",
+            "objective_silent_penalty",
             "accuracy_contribution", "accuracy_variance_contribution",
             "spike_limit_contribution", "silent_penalty_contribution",
             "mean_total_spikes_per_trial", "spike_limit_penalty",
