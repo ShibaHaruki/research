@@ -66,9 +66,22 @@ def _to_numeric(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return df
 
 
+def load_parameter_names(search_dir: Path) -> list[str]:
+    """Use the parameters saved for this run, including historical searches."""
+    settings_path = search_dir / "search_settings.json"
+    if not settings_path.exists() and search_dir.name == "progress":
+        settings_path = search_dir.parent / "search_settings.json"
+    if settings_path.exists():
+        payload = json.loads(settings_path.read_text(encoding="utf-8"))
+        if "parameters" in payload:
+            return [str(spec["name"]) for spec in payload["parameters"]]
+    return [str(spec["name"]) for spec in PARAMS]
+
+
 def build_generation_summary(
     results_csv: Path,
     objective_weights: dict[str, float] | None = None,
+    parameter_names: list[str] | None = None,
 ) -> pd.DataFrame:
     df = pd.read_csv(results_csv)
     numeric_columns = [
@@ -135,13 +148,10 @@ def build_generation_summary(
         "objective_fisher_contribution",
         *component_sources,
     }
-    # Use the CMA-ES parameter specification as the source of truth. This
-    # prevents evaluation settings such as n_folds, test_size, and seed from
-    # being mistaken for searched parameters.
+    if parameter_names is None:
+        parameter_names = load_parameter_names(results_csv.parent)
     parameter_columns = [
-        str(spec["name"])
-        for spec in PARAMS
-        if str(spec["name"]) in df.columns
+        name for name in parameter_names if name in df.columns
     ]
 
     rows = []
@@ -200,7 +210,11 @@ def build_generation_summary(
     return summary
 
 
-def save_plots(summary: pd.DataFrame, out_dir: Path) -> None:
+def save_plots(
+    summary: pd.DataFrame,
+    out_dir: Path,
+    parameter_names: list[str] | None = None,
+) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -257,24 +271,11 @@ def save_plots(summary: pd.DataFrame, out_dir: Path) -> None:
     fig.savefig(out_dir / "cma_es_progress.png", dpi=160)
     plt.close(fig)
 
+    if parameter_names is None:
+        parameter_names = load_parameter_names(out_dir.parent)
     parameter_columns = sorted(
-        column.removeprefix("best_")
-        for column in summary.columns
-        if column.startswith("best_")
-        and column not in {"best_candidate", "best_so_far"}
-        and f"mean_{column.removeprefix('best_')}" in summary.columns
-        and column.removeprefix("best_") not in {
-            "objective", "accuracy8_overall_mean", "accuracy3_overall_mean",
-            "accuracy8_overall_variance", "mean_total_spikes_per_trial",
-            "spike_ratio", "silent_neuron_fraction_exc",
-            "silent_neuron_fraction_inh", "objective_silent_fraction",
-            "objective_silent_penalty",
-            "fisher_ratio_DR_mean", "accuracy8_overall_std", "accuracy3_overall_std",
-            "fisher_ratio_DR_std", "accuracy_variance_contribution",
-            "accuracy_contribution",
-            "spike_limit_contribution", "silent_penalty_contribution",
-            "mean_total_spikes_per_trial", "spike_limit_penalty",
-        }
+        name for name in parameter_names
+        if f"best_{name}" in summary.columns and f"mean_{name}" in summary.columns
     )
     if parameter_columns:
         ncols = 3
@@ -301,6 +302,7 @@ def save_parameter_pca_plot(
     results_csv: Path,
     summary: pd.DataFrame,
     out_dir: Path,
+    parameter_names: list[str] | None = None,
 ) -> None:
     """Plot CMA-ES candidate and generation trajectories in parameter PCA space."""
     import matplotlib
@@ -309,23 +311,11 @@ def save_parameter_pca_plot(
     import matplotlib.pyplot as plt
 
     raw = pd.read_csv(results_csv)
+    if parameter_names is None:
+        parameter_names = load_parameter_names(results_csv.parent)
     parameter_columns = [
-        column.removeprefix("mean_")
-        for column in summary.columns
-        if column.startswith("mean_")
-        and column.removeprefix("mean_") not in {
-            "accuracy8_overall_mean", "accuracy8_overall_std",
-            "accuracy8_overall_variance", "accuracy3_overall_mean",
-            "accuracy3_overall_std", "fisher_ratio_DR_mean",
-            "fisher_ratio_DR_std", "mean_total_spikes_per_trial",
-            "spike_ratio", "silent_neuron_fraction_exc",
-            "silent_neuron_fraction_inh", "objective_silent_fraction",
-            "objective_silent_penalty",
-            "accuracy_contribution", "accuracy_variance_contribution",
-            "spike_limit_contribution", "silent_penalty_contribution",
-            "mean_total_spikes_per_trial", "spike_limit_penalty",
-        }
-        and column.removeprefix("mean_") in raw.columns
+        name for name in parameter_names
+        if name in raw.columns and f"mean_{name}" in summary.columns
     ]
     if not parameter_columns:
         return
@@ -426,9 +416,11 @@ def main() -> int:
     if not results_csv.exists():
         raise FileNotFoundError(f"{results_csv} was not found")
 
+    parameter_names = load_parameter_names(search_dir)
     summary = build_generation_summary(
         results_csv,
         objective_weights=load_objective_weights(search_dir),
+        parameter_names=parameter_names,
     )
     out_dir = search_dir / "progress"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -440,8 +432,8 @@ def main() -> int:
         json.dumps(jsonable(summary.to_dict(orient="records")), indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    save_plots(summary, out_dir)
-    save_parameter_pca_plot(results_csv, summary, out_dir)
+    save_plots(summary, out_dir, parameter_names=parameter_names)
+    save_parameter_pca_plot(results_csv, summary, out_dir, parameter_names=parameter_names)
 
     first = summary.iloc[0]
     last = summary.iloc[-1]

@@ -6,22 +6,24 @@ PARAMS = [
 
     #{"name": "r_inh_liq", "step": 0.1, "initial": 0.20, "low": 0.1, "high": 0.7},
 
-    {"name": "RI_p_E", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 0.60},
-    {"name": "RI_p_I", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 0.60},
+    {"name": "RI_p_E", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
+    {"name": "RI_p_I", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
+
     {"name": "RI_gain_E", "step": 0.1, "initial": 0.10, "low": 1, "high": 100.0},
     {"name": "RI_gain_I", "step": 0.1, "initial": 0.10, "low": 1, "high": 100.0},
 
-    {"name": "SI_p_E", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 0.60},
-    {"name": "SI_p_I", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 0.60},
+    {"name": "SI_p_E", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
+    {"name": "SI_p_I", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
+
     {"name": "SI_gain_E", "step": 0.1, "initial": 0.10, "low": 1, "high": 100.0},
     {"name": "SI_gain_I", "step": 0.1, "initial": 0.10, "low": 1, "high": 100.0},
 
     {"name": "RI_opt_gain", "step": 1, "initial": 1.0, "low": 10, "high": 200.0},
     {"name": "SI_opt_gain", "step": 1, "initial": 1.0, "low": 10, "high": 200.0},
 
-    {"name": "rec_p_ee", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 0.60},
-    {"name": "rec_p_ei", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 0.60},
-    {"name": "rec_p_ie", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 0.60},
+    {"name": "rec_p_ee", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
+    {"name": "rec_p_ei", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
+    {"name": "rec_p_ie", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
     # {"name": "rec_p_ii", "step": 0.01, "initial": 0.00, "low": 0.0, "high": 0.0},
 
     {"name": "rec_gain_ee", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 100.00},
@@ -44,9 +46,9 @@ PARAMS = [
 OBJECTIVE_DEFAULTS = {
     "metric": "accuracy8_overall",
     "α": 3.0,
-    "β": 1.0,
-    "γ": 4.0,
-    "δ": 2.0,
+    "β": 4.0,
+    "γ": 0.01,
+    "δ": 0.125,
     "κ": 2000.0,
 }
 
@@ -93,7 +95,9 @@ SEARCH_OTHER_DEFAULTS = {
     "silent_min_spikes_per_neuron": 1,
     "silent_min_trial_fraction": 0.125,
     "silent_trials_per_material": 0,  # 0 means all available trials
-    "spike_limit": 10000.0,
+    # 100 neurons x 0.5 s: E/I both at 200 Hz give an unweighted penalty of 1.
+    # Per-neuron threshold = 200 / (1 + 1/sqrt(2)) = 117.157... Hz.
+    "spike_limit": 10000.0 / (1.0 + 2.0 ** -0.5),
 
     "share_filter_input_params_across_sensors": True,  
     "search_input_filters": ["RI", "SI"], #["RI", "SI", "USI", "merkel", "meissner"]
