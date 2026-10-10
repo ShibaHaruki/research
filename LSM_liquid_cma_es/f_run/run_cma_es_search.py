@@ -192,6 +192,19 @@ def decode_vector(x: np.ndarray) -> dict[str, float]:
 
 def apply_liquid_params(cfg: dict, params: dict[str, float]) -> dict:
     cfg = deepcopy(cfg)
+    # Reduced searches share RI/SI inputs and recurrent probabilities. Explicit
+    # values in historical candidates take precedence when replaying old runs.
+    params = dict(params)
+    for target, source in (
+        ("SI_p_E", "RI_p_E"),
+        ("SI_p_I", "RI_p_I"),
+        ("SI_gain_E", "RI_gain_E"),
+        ("SI_gain_I", "RI_gain_I"),
+        ("rec_p_ei", "rec_p_ee"),
+        ("rec_p_ie", "rec_p_ee"),
+    ):
+        if source in params:
+            params.setdefault(target, params[source])
     if not bool(SEARCH_DEFAULTS["share_filter_input_params_across_sensors"]):
         raise ValueError(
             "CMA-ES currently requires share_filter_input_params_across_sensors=True"
