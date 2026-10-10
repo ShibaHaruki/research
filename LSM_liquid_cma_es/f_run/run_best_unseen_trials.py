@@ -154,7 +154,19 @@ def main() -> int:
         raise ValueError("Choose either plan-only or plots-only.")
     if args.plots_only:
         out_dir = args.out_dir.resolve() if args.out_dir else search_dir / "heldout_same_recording"
-        plan = json.loads((out_dir / "evaluation_plan.json").read_text(encoding="utf-8"))
+        plan_path = out_dir / "evaluation_plan.json"
+        if not plan_path.is_file():
+            parser.error(
+                f"No completed unused-trial evaluation was found at {out_dir}. "
+                "First run this command without --plots-only to simulate and evaluate unused trials. "
+                "If the evaluation is saved elsewhere, specify its directory with --out-dir."
+            )
+        if not (out_dir / "accuracy" / "metrics.json").is_file():
+            parser.error(
+                f"The evaluation at {out_dir} has not completed (accuracy/metrics.json is missing). "
+                "Wait for the original evaluation to finish before using --plots-only."
+            )
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
         train_dir = state_dir(Path(plan["candidate"]))
         test_dir = state_dir(out_dir / "liquid")
         if trial_ids(test_dir) != {m: set(ids) for m, ids in plan["test_ids"].items()}:
