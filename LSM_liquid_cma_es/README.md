@@ -54,6 +54,34 @@ python .\run_experiment.py exp_002_liquid_gain_sweep_example --trial liq_gain_1p
 python .\f_run\run_liquid.py
 ```
 
+## Evaluate the global best on unused trials
+
+After a search finishes, keep its candidate internal states and configuration
+snapshots. The command below selects the lowest objective across all generations
+and starts, then excludes every simulated search trial ID from the test set.
+It fits the Mahalanobis readout only on the winning candidate's search data;
+test data are used only for predictions. This measures generalization to unused
+trials from the same recording, not to a new recording session.
+
+From `LSM_liquid_cma_es`, inspect the evaluation plan first:
+
+```bash
+python f_run/run_best_unseen_trials.py --search-dir g_tactile_results/cma_es_search/liquid_search001 --samples-per-class 50 --plan-only
+```
+
+Then simulate the selected unused trials and evaluate:
+
+```bash
+python -u f_run/run_best_unseen_trials.py --search-dir g_tactile_results/cma_es_search/liquid_search001 --samples-per-class 50
+```
+
+Outputs are written to `heldout_same_recording` under the search directory:
+the trial selection plan, test internal states, accuracy metrics, confusion
+matrices, per-trial predictions, and fitted readout models. The script refuses
+an existing output directory, insufficient unused trials, or a reconstructed
+network whose saved weights differ from the winning candidate. Use `--out-dir`
+to specify a fresh output directory when repeating an evaluation.
+
 ## MLflow tracking for CMA-ES
 
 Install MLflow once, then add `--mlflow` to the CMA-ES command. The parent

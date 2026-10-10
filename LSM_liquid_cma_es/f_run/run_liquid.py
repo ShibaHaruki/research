@@ -764,7 +764,11 @@ def run_liquid(cfg: dict | int | None = None, legacy_cfg: dict | None = None):
             iterator = tqdm(range(n_train_samples), desc=f"[liquid] {mat}")
             for sample_index in iterator:
                 # 素材ごとにサンプルを読み、入力電流を作ってリキッドへ流す。
-                sid = int(sample_seq[sample_index])
+                explicit_ids = liquid.get("SAMPLE_IDS_BY_MATERIAL")
+                if explicit_ids is None:
+                    sid = int(sample_seq[sample_index])
+                else:
+                    sid = int(explicit_ids[mat][sample_index])
                 file = load_tactile_data(mat, sid)
                 if file is None:
                     continue
