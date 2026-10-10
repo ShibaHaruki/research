@@ -6,25 +6,26 @@ PARAMS = [
 
     #{"name": "r_inh_liq", "step": 0.1, "initial": 0.20, "low": 0.1, "high": 0.7},
 
+    # SIの入力確率・結合gainはRIの同じE/Iパラメータを共用する。
     {"name": "RI_p_E", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
     {"name": "RI_p_I", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
 
-    {"name": "RI_gain_E", "step": 0.1, "initial": 0.10, "low": 1, "high": 100.0},
-    {"name": "RI_gain_I", "step": 0.1, "initial": 0.10, "low": 1, "high": 100.0},
+    {"name": "RI_gain_E", "step": 0.1, "initial": 0.10, "low": 1, "high": 500.0},
+    {"name": "RI_gain_I", "step": 0.1, "initial": 0.10, "low": 1, "high": 500.0},
 
-    # SIの入力確率・結合gainはRIの同じE/Iパラメータを共用する。
 
-    {"name": "RI_opt_gain", "step": 1, "initial": 1.0, "low": 10, "high": 200.0},
-    {"name": "SI_opt_gain", "step": 1, "initial": 1.0, "low": 10, "high": 200.0},
 
-    {"name": "rec_p_ee", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
+    {"name": "RI_opt_gain", "step": 1, "initial": 1.0, "low": 10, "high": 500.0},
+    {"name": "SI_opt_gain", "step": 1, "initial": 1.0, "low": 10, "high": 500.0},
+
     # EE/EI/IEの結合確率はrec_p_eeを共用する。
+    {"name": "rec_p_ee", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
     # {"name": "rec_p_ii", "step": 0.01, "initial": 0.00, "low": 0.0, "high": 0.0},
 
-    {"name": "rec_gain_ee", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 100.00},
-    {"name": "rec_gain_ei", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 100.00},
-    {"name": "rec_gain_ie", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 100.00},
-    # {"name": "rec_gain_ii", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 20.00},
+    {"name": "rec_gain_ee", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 500.00},
+    {"name": "rec_gain_ei", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 500.00},
+    {"name": "rec_gain_ie", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 500.00},
+    # {"name": "rec_gain_ii", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 500.00},
 
     #{"name": "lif_tau_exc", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 20.0},
     #{"name": "lif_tau_inh", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 20.0},
@@ -33,8 +34,8 @@ PARAMS = [
 
     {"name": "lif_bias", "step": 1, "initial": -65.0, "low": -70.0, "high": 0.0},
 
-    {"name": "syn_tau_r", "step": 1, "initial": 2.0, "low": 1, "high": 100.0},
-    {"name": "syn_tau_d", "step": 1, "initial": 30.0, "low": 5.0, "high": 200.0},
+    {"name": "syn_tau_r", "step": 1, "initial": 2.0, "low": 1, "high": 500.0},
+    {"name": "syn_tau_d", "step": 1, "initial": 30.0, "low": 5.0, "high": 500.0},
 ]
 
 
@@ -56,7 +57,7 @@ OBJECTIVE_DEFAULTS = {
 # CMA-ES本体のパラメータ
 CMA_ES_DEFAULTS = {
     "generations": 40,                #世代数 20
-    "population_size": 20,            #個体数 (推奨 λ=4+[3ln(パラメータ数)]) 
+    "population_size": 15,            #個体数 (推奨 λ=4+[3ln(パラメータ数)])
     "sigma0": 1.0,                   #ステップサイズ
     "randomize_initial_center": False, #初期中心はPARAMSのinitial値を使用
 }
@@ -72,16 +73,16 @@ ACCURACY_DEFAULTS ={
 }
 
 SEARCH_OTHER_DEFAULTS = {
-    
+
     "brian_codegen_target": "numpy", # numpy or cython
     "seed": 0,
-    
-    "jobs": 10, #1世代あたりの並列計算する数。Noneなら自動でCPUコア数に合わせる
 
-    "n_starts": 1,# 異なる初期中心での探索回数 
+    "jobs": 16, #1世代あたりの並列計算する数。Noneなら自動でCPUコア数に合わせる
+
+    "n_starts": 1,# 異なる初期中心での探索回数
     "start_jobs": 1, #異なる初期中心で並列計算する数。
 
-    "search_name": "liquid_search007",
+    "search_name": "liquid_search001",
 
     "samples_per_class": 50,
     "internal_state_bin_ms": 1.0,
@@ -94,7 +95,7 @@ SEARCH_OTHER_DEFAULTS = {
     # Per-neuron threshold = 200 / (1 + 1/sqrt(2)) = 117.157... Hz.
     "spike_limit": 10000.0 / (1.0 + 2.0 ** -0.5),
 
-    "share_filter_input_params_across_sensors": True,  
+    "share_filter_input_params_across_sensors": True,
     "search_input_filters": ["RI", "SI"], #["RI", "SI", "USI", "merkel", "meissner"]
 
 }
