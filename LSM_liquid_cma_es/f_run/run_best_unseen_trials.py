@@ -21,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from d_tools.run_paths import jsonable
+from d_tools.heldout_plots import save_heldout_plots
 from f_run.run_cma_es_search import apply_liquid_params
 from f_run.run_common import build_cfg, build_network_cfg, load_tactile_data
 from f_run.run_liquid import run_liquid
@@ -121,6 +122,8 @@ def evaluate_fixed_readout(train_dir: Path, test_dir: Path, out_dir: Path, t_n_m
         f"class{i}_{key}": value for i, model in enumerate(models) for key, value in model.items()
     })
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    save_heldout_plots(train_features, test_features, DIR_NAME, train_files,
+                       test_files, confusion, out_dir.parent / "plots", t_n_ms)
     return metrics
 
 
@@ -141,10 +144,26 @@ def main() -> int:
     parser.add_argument("--samples-per-class", type=int, default=50)
     parser.add_argument("--out-dir", type=Path)
     parser.add_argument("--plan-only", action="store_true")
+    parser.add_argument("--plots-only", action="store_true",
+                        help="Reuse an existing evaluation and regenerate metrics/PCA without simulation.")
     args = parser.parse_args()
     if args.samples_per_class < 1:
         raise ValueError("samples-per-class must be positive")
     search_dir = args.search_dir.resolve()
+    if args.plan_only and args.plots_only:
+        raise ValueError("Choose either plan-only or plots-only.")
+    if args.plots_only:
+        out_dir = args.out_dir.resolve() if args.out_dir else search_dir / "heldout_same_recording"
+        plan = json.loads((out_dir / "evaluation_plan.json").read_text(encoding="utf-8"))
+        train_dir = state_dir(Path(plan["candidate"]))
+        test_dir = state_dir(out_dir / "liquid")
+        if trial_ids(test_dir) != {m: set(ids) for m, ids in plan["test_ids"].items()}:
+            raise ValueError("Saved test states do not match the evaluation plan.")
+        verify_weights(train_dir, test_dir)
+        settings = json.loads((Path(plan["candidate"]).parent / "search_settings.json").read_text(encoding="utf-8"))
+        evaluate_fixed_readout(train_dir, test_dir, out_dir / "accuracy", float(settings["T_n_ms"]))
+        print(f"[heldout] plots saved to {out_dir / 'plots'}")
+        return 0
     if not (search_dir / "best_params.json").exists():
         raise ValueError("Finish the search before evaluating its global best candidate.")
     evaluated = candidate_rows(search_dir)

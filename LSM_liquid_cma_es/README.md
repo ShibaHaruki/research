@@ -82,6 +82,21 @@ an existing output directory, insufficient unused trials, or a reconstructed
 network whose saved weights differ from the winning candidate. Use `--out-dir`
 to specify a fresh output directory when repeating an evaluation.
 
+The evaluation also saves 2D/3D PCA comparisons, training explained variance,
+an annotated confusion matrix, and per-material accuracy under `plots/`.
+PCA uses the classification features (25 ms windows with the current settings);
+scaling and components are fitted on search data only. Test trials are projected
+onto the same axes. Classification still uses the full features, not PCA scores.
+The liquid simulation also saves its usual first-trial debug plots per material
+(input waveforms, raster, voltage and internal-state heatmap).
+
+For an already completed evaluation, regenerate metrics and plots without
+simulating the liquid again:
+
+```bash
+python f_run/run_best_unseen_trials.py --search-dir g_tactile_results/cma_es_search/liquid_search001 --plots-only
+```
+
 ## MLflow tracking for CMA-ES
 
 Install MLflow once, then add `--mlflow` to the CMA-ES command. The parent
