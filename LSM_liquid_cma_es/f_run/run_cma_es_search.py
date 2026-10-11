@@ -309,6 +309,18 @@ def apply_liquid_params(cfg: dict, params: dict[str, float]) -> dict:
             elif probability_key is not None:
                 probability = float(params[probability_key])
                 layer_cfg["p"] = {"E": probability, "I": probability}
+            if (
+                probability_e_key is None
+                and probability_key is None
+                and "fixed_input_probability_exc" in SEARCH_DEFAULTS
+            ):
+                current_p = layer_cfg.get("p", {})
+                if not isinstance(current_p, dict):
+                    current_p = {"E": current_p, "I": current_p}
+                layer_cfg["p"] = {
+                    **current_p,
+                    "E": float(SEARCH_DEFAULTS["fixed_input_probability_exc"]),
+                }
             if scale_e_key is not None or scale_i_key is not None:
                 current_scale = layer_cfg.get("scale", {})
                 if not isinstance(current_scale, dict):
