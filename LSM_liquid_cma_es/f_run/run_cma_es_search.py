@@ -195,6 +195,12 @@ def apply_liquid_params(cfg: dict, params: dict[str, float]) -> dict:
     # Reduced searches share RI/SI inputs and recurrent probabilities. Explicit
     # values in historical candidates take precedence when replaying old runs.
     params = dict(params)
+    if (
+        SEARCH_DEFAULTS.get("share_recurrent_probability_across_all_pairs", False)
+        and "rec_p_ee" in params
+        and "rec_gain_ii" in params
+    ):
+        params.setdefault("rec_p_ii", params["rec_p_ee"])
     for target, source in (
         ("SI_p_E", "RI_p_E"),
         ("SI_p_I", "RI_p_I"),
@@ -318,18 +324,32 @@ def apply_liquid_params(cfg: dict, params: dict[str, float]) -> dict:
             elif scale_key is not None:
                 scale = float(params[scale_key])
                 layer_cfg["scale"] = {"E": scale, "I": scale}
+            if SEARCH_DEFAULTS.get("disable_input_to_inhibitory", False):
+                layer_cfg["p"]["I"] = 0.0
+                current_scale = layer_cfg.get("scale", {})
+                if not isinstance(current_scale, dict):
+                    current_scale = {"E": current_scale, "I": current_scale}
+                layer_cfg["scale"] = {**current_scale, "I": 0.0}
 
+    historical_probabilities = any(
+        f"rec_p_{pair}" in params for pair in ("ee", "ei", "ie", "ii")
+    )
+    fixed_probabilities = SEARCH_DEFAULTS["fixed_recurrent_probabilities"]
     net["p_liq_intra_pairs"] = {
-        "EE": params["rec_p_ee"],
-        "EI": params["rec_p_ei"],
-        "IE": params["rec_p_ie"],
-        "II": params.get("rec_p_ii", 0.0),
+        pair: params.get(
+            f"rec_p_{pair.lower()}",
+            0.0 if historical_probabilities and pair == "II" else fixed_probabilities[pair],
+        )
+        for pair in ("EE", "EI", "IE", "II")
     }
     net["liq_intra_gain_pairs"] = {
         "EE": params["rec_gain_ee"],
         "EI": params["rec_gain_ei"],
         "IE": params["rec_gain_ie"],
-        "II": params.get("rec_gain_ii", 0.0),
+        "II": params.get(
+            "rec_gain_ii",
+            0.0 if historical_probabilities else SEARCH_DEFAULTS["fixed_recurrent_ii_gain"],
+        ),
     }
 
     net["poisson_input"]["enabled"] = False

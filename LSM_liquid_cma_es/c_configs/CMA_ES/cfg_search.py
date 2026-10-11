@@ -6,33 +6,30 @@ PARAMS = [
 
     #{"name": "r_inh_liq", "step": 0.1, "initial": 0.20, "low": 0.1, "high": 0.7},
 
-    # SIの入力確率・結合gainはRIの同じE/Iパラメータを共用する。
+    # SIのE向け入力確率・結合gainはRIと共用する。Iへの直接入力は無効。
     {"name": "RI_p_E", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
-    {"name": "RI_p_I", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
 
     {"name": "RI_gain_E", "step": 0.1, "initial": 0.10, "low": 1, "high": 500.0},
-    {"name": "RI_gain_I", "step": 0.1, "initial": 0.10, "low": 1, "high": 500.0},
 
 
 
     {"name": "RI_opt_gain", "step": 1, "initial": 1.0, "low": 10, "high": 500.0},
     {"name": "SI_opt_gain", "step": 1, "initial": 1.0, "low": 10, "high": 500.0},
 
-    # EE/EI/IEの結合確率はrec_p_eeを共用する。
-    {"name": "rec_p_ee", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1},
-    # {"name": "rec_p_ii", "step": 0.01, "initial": 0.00, "low": 0.0, "high": 0.0},
+    # EE/EI/IE/IIの再帰結合確率はrec_p_eeを共用する。
+    {"name": "rec_p_ee", "step": 0.01, "initial": 0.05, "low": 0.01, "high": 1.0},
 
     {"name": "rec_gain_ee", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 500.00},
     {"name": "rec_gain_ei", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 500.00},
     {"name": "rec_gain_ie", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 500.00},
-    # {"name": "rec_gain_ii", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 500.00},
+    {"name": "rec_gain_ii", "step": 0.1, "initial": 0.10, "low": 1.0, "high": 500.00},
 
     #{"name": "lif_tau_exc", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 20.0},
     #{"name": "lif_tau_inh", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 20.0},
     # {"name": "lif_ref_exc", "step": "linear", "initial": 2.0, "low": 0.5, "high": 10.0},
     # {"name": "lif_ref_inh", "step": "linear", "initial": 2.0, "low": 0.5, "high": 10.0},
 
-    {"name": "lif_bias", "step": 1, "initial": -65.0, "low": -70.0, "high": 0.0},
+    # lif_biasは探索せず、FIXED/cfg_neuron_models.pyのbias=-65.0を使用する。
 
     {"name": "syn_tau_r", "step": 1, "initial": 2.0, "low": 1, "high": 500.0},
     {"name": "syn_tau_d", "step": 1, "initial": 30.0, "low": 5.0, "high": 500.0},
@@ -73,6 +70,11 @@ ACCURACY_DEFAULTS ={
 }
 
 SEARCH_OTHER_DEFAULTS = {
+    "share_recurrent_probability_across_all_pairs": True,
+    "disable_input_to_inhibitory": True,
+    "fixed_recurrent_probabilities": {"EE": 0.10, "EI": 0.10, "IE": 0.10, "II": 0.10},
+    # rec_gain_iiを保存していない候補の再評価用の既定値。
+    "fixed_recurrent_ii_gain": 0.25,
 
     "brian_codegen_target": "numpy", # numpy or cython
     "seed": 0,
