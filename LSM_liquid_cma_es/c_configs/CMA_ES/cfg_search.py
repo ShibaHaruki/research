@@ -9,23 +9,23 @@ PARAMS = [
     # SIのE向け入力確率・結合gainはRIと共用する。Iへの直接入力は無効。
     # 入力→Eの確率はSEARCH_OTHER_DEFAULTSで5%に固定する。
 
-    {"name": "RI_gain_E", "step": 0.1, "initial": 0.10, "low": 0, "high": 500.0},
+    {"name": "RI_gain_E", "step": "linear", "initial": 0.10, "low": 0, "high": 500.0},
 
 
 
-    {"name": "RI_opt_gain", "step": 1, "initial": 1.0, "low": 1, "high": 500.0},
-    {"name": "SI_opt_gain", "step": 1, "initial": 1.0, "low": 1, "high": 500.0},
+    {"name": "RI_opt_gain", "step": "linear", "initial": 1.0, "low": 1, "high": 500.0},
+    {"name": "SI_opt_gain", "step": "linear", "initial": 1.0, "low": 1, "high": 500.0},
 
     # EE/EI/IE/IIの再帰結合確率をそれぞれ独立に探索する。
-    {"name": "rec_p_ee", "step": 0.01, "initial": 0.10, "low": 0.01, "high": 1.0},
-    {"name": "rec_p_ei", "step": 0.01, "initial": 0.10, "low": 0.01, "high": 1.0},
-    {"name": "rec_p_ie", "step": 0.01, "initial": 0.10, "low": 0.01, "high": 1.0},
-    {"name": "rec_p_ii", "step": 0.01, "initial": 0.10, "low": 0.01, "high": 1.0},
+    {"name": "rec_p_ee", "step": "linear", "initial": 0.10, "low": 0.01, "high": 1.0},
+    {"name": "rec_p_ei", "step": "linear", "initial": 0.10, "low": 0.01, "high": 1.0},
+    {"name": "rec_p_ie", "step": "linear", "initial": 0.10, "low": 0.01, "high": 1.0},
+    {"name": "rec_p_ii", "step": "linear", "initial": 0.10, "low": 0.01, "high": 1.0},
 
-    {"name": "rec_gain_ee", "step": 0.1, "initial": 0.10, "low": 0, "high": 500.00},
-    {"name": "rec_gain_ei", "step": 0.1, "initial": 0.10, "low": 0, "high": 500.00},
-    {"name": "rec_gain_ie", "step": 0.1, "initial": 0.10, "low": 0, "high": 500.00},
-    {"name": "rec_gain_ii", "step": 0.1, "initial": 0.10, "low": 0, "high": 500.00},
+    {"name": "rec_gain_ee", "step": "linear", "initial": 0.10, "low": 0, "high": 500.00},
+    {"name": "rec_gain_ei", "step": "linear", "initial": 0.10, "low": 0, "high": 500.00},
+    {"name": "rec_gain_ie", "step": "linear", "initial": 0.10, "low": 0, "high": 500.00},
+    {"name": "rec_gain_ii", "step": "linear", "initial": 0.10, "low": 0, "high": 500.00},
 
     #{"name": "lif_tau_exc", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 20.0},
     #{"name": "lif_tau_inh", "step": 0.1, "initial": 10.0, "low": 1.0, "high": 20.0},
@@ -34,8 +34,8 @@ PARAMS = [
 
     # lif_biasは探索せず、FIXED/cfg_neuron_models.pyのbias=-65.0を使用する。
 
-    {"name": "syn_tau_r", "step": 1, "initial": 2.0, "low": 1, "high": 500.0},
-    {"name": "syn_tau_d", "step": 1, "initial": 30.0, "low": 1, "high": 500.0},
+    {"name": "syn_tau_r", "step": "linear", "initial": 2.0, "low": 1, "high": 500.0},
+    {"name": "syn_tau_d", "step": "linear", "initial": 30.0, "low": 1, "high": 500.0},
 ]
 
 
