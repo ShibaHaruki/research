@@ -60,6 +60,7 @@ CMA_ES_DEFAULTS = {
     "population_size": 15,            #個体数 (推奨 λ=4+[3ln(パラメータ数)])
     "sigma0": 1.0,                   #ステップサイズ
     "randomize_initial_center": False, #初期中心はPARAMSのinitial値を使用
+    "initial_population_distribution": "uniform", # 第1世代は各探索範囲から一様に生成。以降はCMA-ES。
 }
 
 # 評価条件

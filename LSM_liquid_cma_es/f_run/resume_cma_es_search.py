@@ -92,7 +92,15 @@ def main():
         raise ValueError("This recovery script supports one start, without dry-run or MLflow")
     root = search.CMA_DIR / args.search_name
     settings = read_json(root / "search_settings.json")
+    # Old searches predate this option and used normal CMA sampling. Recover
+    # the recorded initialization unless the caller explicitly overrides it.
+    if not any(arg.split("=", 1)[0] == "--initial-population-distribution" for arg in sys.argv):
+        args.initial_population_distribution = settings.get("initial_population_distribution", "gaussian")
     current = search.jsonable(search.build_search_settings(args))
+    if "initial_population_distribution" not in settings:
+        if args.initial_population_distribution != "gaussian":
+            raise ValueError("Saved search used gaussian initialization; uniform cannot replay it")
+        current.pop("initial_population_distribution")
     if current != settings:
         differing = sorted(key for key in set(settings) | set(current) if settings.get(key) != current.get(key))
         raise ValueError(f"Search settings differ from saved settings: {differing}")
@@ -128,7 +136,10 @@ def main():
     # Verify ALL saved generations before starting any expensive evaluation.
     pending = None
     for generation in range(1, last + 1):
-        solutions = strategy.ask()
+        solutions = search.ask_search_population(
+            strategy, generation=generation, seed=int(args.seed) + 100000,
+            initial_population_distribution=args.initial_population_distribution,
+        )
         count = 0
         for candidate, raw in enumerate(solutions, 1):
             result = results.get((generation, candidate))
@@ -155,7 +166,10 @@ def main():
     save_csv(root, results, search)
     jobs = max(1, min(int(args.jobs or population), population, search._max_process_workers()))
     for generation in range(next_generation, int(args.generations) + 1):
-        solutions = pending[1] if pending and generation == pending[0] else strategy.ask()
+        solutions = pending[1] if pending and generation == pending[0] else search.ask_search_population(
+            strategy, generation=generation, seed=int(args.seed) + 100000,
+            initial_population_distribution=args.initial_population_distribution,
+        )
         payloads = [
             (np.asarray(raw, dtype=float), generation, candidate, str(root), args)
             for candidate, raw in enumerate(solutions, 1)

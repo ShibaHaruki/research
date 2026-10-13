@@ -797,6 +797,23 @@ def evaluate_candidate_worker(payload: tuple[np.ndarray, int, int, str, argparse
     )
 
 
+def ask_search_population(strategy, *, generation: int, seed: int, initial_population_distribution: str):
+    """Use exact uniform proposals only for generation one, then normal CMA asks.
+
+    Public pycma injection registers the proposals with ask/tell, including
+    covariance-update safeguards for externally supplied points.
+    A separate RNG keeps simulator or CMA sampling from altering these points.
+    """
+    if initial_population_distribution not in {"uniform", "gaussian"}:
+        raise ValueError("initial_population_distribution must be uniform or gaussian")
+    if generation == 1 and initial_population_distribution == "uniform":
+        proposals = np.random.default_rng(int(seed)).uniform(
+            0.0, 1.0, size=(int(strategy.popsize), len(strategy.mean))
+        )
+        strategy.inject(proposals.tolist(), force=True)
+    return strategy.ask()
+
+
 def cma_es_ask_tell(
     *,
     x0: np.ndarray,
@@ -805,6 +822,7 @@ def cma_es_ask_tell(
     population_size: int,
     seed: int,
     evaluate_population,
+    initial_population_distribution: str = "gaussian",
 ) -> tuple[np.ndarray, float]:
     strategy = cma.CMAEvolutionStrategy(
         np.asarray(x0, dtype=float).tolist(),
@@ -820,7 +838,10 @@ def cma_es_ask_tell(
     best_obj = float("inf")
 
     for generation in range(1, int(generations) + 1):
-        solutions = strategy.ask()
+        solutions = ask_search_population(
+            strategy, generation=generation, seed=seed,
+            initial_population_distribution=initial_population_distribution,
+        )
         results = evaluate_population(generation, np.asarray(solutions, dtype=float))
         objectives: list[float] = []
         for result in results:
@@ -866,6 +887,7 @@ def build_search_settings(args: argparse.Namespace) -> dict:
         "n_starts": int(args.n_starts),
         "start_jobs": int(args.start_jobs),
         "randomize_initial_center": bool(SEARCH_DEFAULTS["randomize_initial_center"]),
+        "initial_population_distribution": str(args.initial_population_distribution),
         "share_filter_input_params_across_sensors": bool(
             SEARCH_DEFAULTS["share_filter_input_params_across_sensors"]
         ),
@@ -967,6 +989,17 @@ def run_one_cma_start(
         )
 
     def evaluate_population(generation: int, arx: np.ndarray) -> list[dict]:
+        if generation == 1:
+            (search_dir / "initial_population.json").write_text(
+                json.dumps(jsonable({
+                    "distribution": args.initial_population_distribution,
+                    "seed": int(args.seed) + 100000 * int(start_index),
+                    "candidates": [
+                        {"candidate": index, "raw_x": x.tolist(), "params": decode_vector(x)}
+                        for index, x in enumerate(arx, start=1)
+                    ],
+                }), indent=2, ensure_ascii=False), encoding="utf-8",
+            )
         payloads = [
             (np.asarray(x, dtype=float), int(generation), int(candidate_index), str(search_dir), args)
             for candidate_index, x in enumerate(arx, start=1)
@@ -997,6 +1030,7 @@ def run_one_cma_start(
         population_size=int(args.population_size),
         seed=int(args.seed) + 100000 * int(start_index),
         evaluate_population=evaluate_population,
+        initial_population_distribution=str(args.initial_population_distribution),
     )
     best = {
         "start": int(start_index),
@@ -1046,6 +1080,11 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--sigma0", type=float, default=SEARCH_DEFAULTS["sigma0"])
+    parser.add_argument(
+        "--initial-population-distribution", choices=("uniform", "gaussian"),
+        default=SEARCH_DEFAULTS.get("initial_population_distribution", "gaussian"),
+        help="Generation-one proposals: uniform over normalized search ranges or normal CMA sampling.",
+    )
     parser.add_argument("--seed", type=int, default=SEARCH_DEFAULTS["seed"])
     parser.add_argument(
         "--n-starts",
