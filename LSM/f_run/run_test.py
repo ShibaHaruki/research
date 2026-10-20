@@ -324,6 +324,9 @@ def run_test(rep: int, train_dir: Path | None = None) -> str:
                 dt=dt_s,
                 input_filter_map=input_filter_map,
                 filter_funcs=filter_funcs,
+                sensor_gain=cfg.get("sensor_gain"),
+                filter_gain=cfg.get("filter_gain"),
+                opt_filter_gain=cfg.get("opt_filter_gain"),
             )
 
             input_ta = TimedArray(input_current.T, dt=float(test_net_cfg["dt_ms"]) * ms)

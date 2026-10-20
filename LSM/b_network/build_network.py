@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from numbers import Number
 from typing import Any
 
@@ -330,17 +331,22 @@ def _init_group_state(
     r_inh: float,
     neuron_model: dict,
     set_position: bool = False,
+    ordered_ei: bool = False,
 ) -> None:
     N = len(group)
-    typ, tau_m, t_ref = make_ei_arrays(
-        N=N,
-        r_inh=r_inh,
-        rng=rng,
-        tau_exc=cfg["tau_exc"],
-        tau_inh=cfg["tau_inh"],
-        ref_exc=cfg["ref_exc"],
-        ref_inh=cfg["ref_inh"],
-    )
+    if ordered_ei:
+        n_inh = int(np.round(r_inh * N))
+        typ = np.ones(N, dtype=np.int32)
+        if n_inh:
+            typ[-n_inh:] = -1
+        tau_m = np.where(typ == 1, cfg["tau_exc"], cfg["tau_inh"])
+        t_ref = np.where(typ == 1, cfg["ref_exc"], cfg["ref_inh"])
+    else:
+        typ, tau_m, t_ref = make_ei_arrays(
+            N=N, r_inh=r_inh, rng=rng,
+            tau_exc=cfg["tau_exc"], tau_inh=cfg["tau_inh"],
+            ref_exc=cfg["ref_exc"], ref_inh=cfg["ref_inh"],
+        )
 
     group.typ = typ
     group.tau_m = tau_m * ms
@@ -348,6 +354,8 @@ def _init_group_state(
 
     group.I_merkel = 0
     group.I_meissner = 0
+    group.I_RI = 0
+    group.I_SI = 0
     group.I_exc = 0
     group.I_inh = 0
     group.H_exc = 0
@@ -386,6 +394,7 @@ def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
             r_inh=_layer_float(cfg["r_inh_liq"], layer_index),
             neuron_model=neuron_model,
             set_position=True,
+            ordered_ei=cfg.get("liquid_ei_layout") == "E_then_I",
         )
         groups.append(group)
 
@@ -497,11 +506,50 @@ def _make_synapses(
     return Synapses(pre, post, **kwargs)
 
 
+def _calibrated_liquid_weights(cfg):
+    path = cfg.get("calibrated_liquid_weights")
+    if not path:
+        return None
+    path = Path(path)
+    if not path.is_absolute():
+        path = Path(__file__).resolve().parents[1] / path
+    if _layer_sizes(cfg, "N_liq") != [100] or float(cfg["r_inh_liq"]) != .2 or cfg.get("liquid_ei_layout") != "E_then_I":
+        raise ValueError("Calibrated liquid weights require 100 neurons with E80 followed by I20.")
+    expected = {"EE": .11, "EI": .10, "IE": .37, "II": .10}
+    if any(float(layer_val(cfg["p_liq_intra_pairs"][k], 0)) != p for k, p in expected.items()):
+        raise ValueError("To change connection probabilities, clear calibrated_liquid_weights and generate a new network.")
+    with np.load(path) as data:
+        return data["input_unit"].copy(), data["recurrent_unit"].copy()
+
+
 def make_in_to_liq_synapses(G_in, G_liq, rng, cfg, name_prefix="S"):
     filters = cfg["USE_INPUT_FILTERS"]
     n_filters = len(filters)
     filter_to_mod = {name: idx for idx, name in enumerate(filters)}
     route = cfg["IN_ROUTE"]
+    calibrated = _calibrated_liquid_weights(cfg)
+    if calibrated is not None:
+        unit, _ = calibrated
+        if len(G_in) != 6 or list(filters) != ["RI", "SI"] or set(route) != {(ch, f) for ch in range(3) for f in filters}:
+            raise ValueError("Calibrated liquid weights require all three RI/SI sensor routes.")
+        synapses = []
+        for mod, filter_name in enumerate(filters):
+            matrix = np.zeros_like(unit)
+            for ch in range(3):
+                settings = route[(ch, filter_name)]["layers"][0]
+                p_e, p_i = _read_post_ei_values(settings, "p")
+                if p_e != .05 or p_i != 0.:
+                    raise ValueError("Calibrated input connections require E probability 0.05 and I probability 0.")
+                scale_e, scale_i = _read_post_ei_values(settings, "scale")
+                if scale_i != 0.:
+                    raise ValueError("Calibrated liquid has no direct input to I.")
+                matrix[ch*2+mod] = unit[ch*2+mod] * scale_e
+            i, j = np.nonzero(unit * (np.arange(6)[:, None] % 2 == mod))
+            s = Synapses(G_in, G_liq[0], model=f"w : 1\nI_{filter_name}_post = w * I_pre : 1 (summed)\n", method="euler", name=f"{name_prefix}_{filter_name}_liq1")
+            s.connect(i=i, j=j)
+            s.w = matrix[i, j]
+            synapses.append(s)
+        return synapses, []
 
     syn_map: dict[tuple[int, str], tuple[Synapses, int]] = {}
     meta: list[dict[str, Any]] = []
@@ -659,6 +707,27 @@ def make_liq_intra_synapses(G_liq, rng, cfg: dict, name_prefix="S_liq_intra_"):
     synI = SYNAPSE_MODELS[cfg["synapse_model"]]["liq_inh"]
     connect_fn = get_connection("liq_intra", cfg.get("liq_intra_connection", "random"))
     gain_pairs = cfg["liq_intra_gain_pairs"]
+    calibrated = _calibrated_liquid_weights(cfg)
+    if calibrated is not None:
+        _, unit = calibrated
+        gEE, gEI, gIE, gII = _pair_values(gain_pairs, 0)
+        if gII != 0.:
+            raise ValueError("Calibrated snapshot has II disabled; regenerate the network to enable II.")
+        matrix = np.abs(unit)
+        matrix[:80, :80] *= gEE
+        matrix[:80, 80:] *= gEI
+        matrix[80:, :80] *= gIE
+        matrix[80:, 80:] *= gII
+        result = []
+        for first, last, model, label in [(0, 80, synE, "E"), (80, 100, synI, "I")]:
+            i, j = np.nonzero(unit[first:last])
+            i = i + first
+            s = _make_synapses(G_liq[0], G_liq[0], model, name=f"{name_prefix}{label}_L1", cfg=cfg)
+            s.connect(i=i, j=j)
+            setattr(s, model["w_attr"], matrix[i, j])
+            s.delay = 0 * ms
+            result.append(s)
+        return result, []
 
     synapse_list = []
     meta = []

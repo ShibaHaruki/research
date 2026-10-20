@@ -1,48 +1,117 @@
-"""触覚波形を Merkel / Meissner 型の入力電流へ変換するフィルタ。"""
+"""触覚時系列データから、入力フィルタを計算する"""
 
+from __future__ import annotations
 import numpy as np
 
-DERIVATIVE_WIDTH = 25
-FAST_FILTER_TAU_S = 0.2 * 1e-3
+#差分幅
+DERIVATIVE_WIDTH = 1
 
+COMPONENT_NAMES = ("RI", "SI", "USI")
 
+#指数平滑フィルタの時定数
+EXP_FILTER_tau = 6.0 * 1e-3
+
+#入力フィルタの時定数
+RI_tau = 0.9 * 1e-3
+SI_tau = 80 * 1e-3
+USI_tau = 1744.6 * 1e-3
+
+#入力フィルタのgain
+RI_gain = 0.74
+SI_gain = 0.24
+USI_gain = 0.07
+
+#センサー間のスケールの違いを補正するためのゲイン
+SENSOR_GAIN = {
+    0: 1 / 1.62,
+    1: 1 / 2.91,
+    2: 1 / 2.27,
+}
+
+#入力フィルタ間のスケールの違いを補正するためのゲイン
+FILTER_GAIN = {
+    
+    "RI": 1 / 9.16,
+    "SI": 1 / 553.91,
+
+    "USI": 1 / 532.04,
+    "merkel": 0.008,
+    "meissner": 0.0876,
+}
+
+#指数平滑フィルタ
+def _exp_filter(data, dt):
+    filtered = np.zeros_like(data, dtype=float)
+    if len(data) == 0:
+        return filtered
+
+    filtered[0] = data[0]
+    alpha = dt / EXP_FILTER_tau
+    for i in range(1, len(data)):
+        filtered[i] = filtered[i - 1] + alpha * (data[i] - filtered[i - 1])
+    return filtered
+
+#差分→絶対値
 def _abs_derivative(data, t, i, width=DERIVATIVE_WIDTH):
-	j = max(0, i - int(width))
-	if j == i:
-		return 0.0
-	return np.abs(data[i] - data[j]) / (t[i] - t[j])
+    j = max(0, i - int(width))
+    if j == i:
+        return 0.0
+    return np.abs(data[i] - data[j]) / (t[i] - t[j])
+
+
+def _calc_components(data, t, dt):
+    components = np.zeros((3, len(t)))
+    filtered_data = _exp_filter(data, dt)
+
+    for i in range(len(t)):
+        if i == 0:
+            continue
+
+        dF_dt = _abs_derivative(filtered_data, t, i)
+        components[0, i] = _RI_step(components, i, dF_dt, dt)
+        components[1, i] = _SI_step(components, i, dF_dt, dt)
+        components[2, i] = _USI_step(components, i, dF_dt, dt)
+
+    return components
+
+#RIフィルタ
+def _RI_step(components, i, dF_dt, dt):
+    return components[0, i - 1] + dF_dt + (-components[0, i - 1] * dt / RI_tau)
+
+#SIフィルタ
+def _SI_step(components, i, dF_dt, dt):
+    return components[1, i - 1] +  dF_dt + (-(components[1, i - 1] - 0.24 * 0.13) * dt / SI_tau)
+
+#USIフィルタ
+def _USI_step(components, i, dF_dt, dt):
+    return components[2, i - 1] + dF_dt + (-components[2, i - 1] * dt / USI_tau)
+
+#meissnerフィルタ
+def calc_meissner_components(data, t, dt):
+    components = _calc_components(data, t, dt)
+    return {name: components[index, :] for index, name in enumerate(COMPONENT_NAMES)}
+
+#merkelフィルタ
+def calc_merkel_components(data, t, dt):
+    components = _calc_components(data, t, dt)
+    return {name: components[index, :] for index, name in enumerate(COMPONENT_NAMES)}
+
+
+def RI(data, t, dt):
+    return _calc_components(data, t, dt)[0, :]
+
+
+def SI(data, t, dt):
+    return _calc_components(data, t, dt)[1, :]
+
+
+def USI(data, t, dt):
+    return _calc_components(data, t, dt)[2, :]
+
 
 def calc_meissner(data, t, dt):
-	# 速い変化に反応する Meissner 型の入力電流を作る。
-
-	I = np.zeros((4, len(t)))
-	
-	for i in range(len(t)):
-		if(i!=0):
-			dF_dt = _abs_derivative(data, t, i)
-
-			I[0, i] = I[0, i-1] + 0.74*dF_dt + (-I[0, i-1]*dt/FAST_FILTER_TAU_S) 
-			I[1, i] = I[1, i-1] + 0.24*dF_dt + (-(I[1, i-1] - 0.24*0.13)*dt/(200* 1e-3) )
-			I[2, i] = I[2, i-1] + 0.07*dF_dt + (-I[2, i-1]*dt/(1744.6* 1e-3))
-			I[3, i] = I[0, i] 
-
-	return I[3,:]
+    return RI_gain * RI(data, t, dt)
 
 
 def calc_merkel(data, t, dt):
-	# 力の変化と持続成分を合わせた Merkel 型の入力電流を作る。
-
-	I = np.zeros((4, len(t)))
-	
-	for i in range(len(t)):
-		if(i!=0):
-			dF_dt = _abs_derivative(data, t, i)
-
-			if(dF_dt < 0):
-				dF_dt = 0
-			I[0, i] = I[0, i-1] + 0.74*dF_dt + (-I[0, i-1]*dt/FAST_FILTER_TAU_S) 
-			I[1, i] = I[1, i-1] + 0.24*dF_dt + (-(I[1, i-1] - 0.24*0.13)*dt/(200*1* 1e-3) )
-			I[2, i] = I[2, i-1] + 0.07*dF_dt + (-I[2, i-1]*dt/(1744.6*1* 1e-3))
-			I[3, i] = I[0, i] +  I[1, i] +  I[2, i] 
-
-	return I[3,:]
+    return RI_gain * RI(data, t, dt) + SI_gain * SI(data, t, dt) + USI_gain * USI(data, t, dt)

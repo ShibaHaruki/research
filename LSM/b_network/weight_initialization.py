@@ -23,7 +23,7 @@ def init_in_to_liq(
     denom = max(N_post, 1)
     Kbar = max(float(n_syn) / float(denom), _EPS)
 
-    return x * float(scale) / np.sqrt(Kbar)
+    return np.abs(x) * float(scale) / np.sqrt(Kbar)
 
 
 def init_liq_intra(

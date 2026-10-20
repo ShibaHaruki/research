@@ -17,7 +17,9 @@ REQUIRED_NEURON_KEYS = (
 COMMON_NEURON_MODEL_PARAMETERS = """
 I_merkel   : 1
 I_meissner : 1
-I_in = I_merkel + I_meissner : 1
+I_RI       : 1
+I_SI       : 1
+I_in = I_RI + I_SI + I_merkel + I_meissner : 1
 
 tau_m : second
 t_ref : second

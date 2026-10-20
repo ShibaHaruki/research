@@ -113,7 +113,9 @@ from c_configs.FIXED import (
     cfg_neuron_models,
     cfg_synapse_models,
 )
-from c_configs.FIXED.cfg_filter import FILTER_FUNCS, INPUT_FILTER_MAP
+from c_configs.FIXED.cfg_filter import (
+    FILTER_FUNCS, INPUT_FILTER_MAP, SENSOR_GAIN, FILTER_GAIN, OPT_FILTER_GAIN,
+)
 
 
 prefs.codegen.target = RUN_CFG["BRIAN_CODEGEN_TARGET"]
@@ -154,6 +156,9 @@ def build_cfg():
         ),
         "filter_funcs": FILTER_FUNCS,
         "input_filter_map": INPUT_FILTER_MAP,
+        "sensor_gain": SENSOR_GAIN,
+        "filter_gain": FILTER_GAIN,
+        "opt_filter_gain": OPT_FILTER_GAIN,
     }
 
 
@@ -221,18 +226,26 @@ def load_tactile_data(mat: str, sid: int, tactile_data_path=TACTILE_DATA_PATH):
     return fp[0]
 
 
-def build_input_current(in_data_0, t_array, dt, input_filter_map, filter_funcs):
-    # 生の触覚データを、指定された Merkel / Meissner などの入力電流へ変換する。
+def build_input_current(
+    in_data_0, t_array, dt, input_filter_map, filter_funcs,
+    sensor_gain=None, filter_gain=None, opt_filter_gain=None,
+):
+    # センサー補正後にフィルタを計算し、フィルタごとのスケールをそろえる。
     channels = sorted(input_filter_map)
     nt = in_data_0.shape[1]
     total_filters = sum(len(input_filter_map[ch]) for ch in channels)
     input_current = np.zeros((total_filters, nt))
+    sensor_gain = SENSOR_GAIN if sensor_gain is None else sensor_gain
+    filter_gain = FILTER_GAIN if filter_gain is None else filter_gain
+    opt_filter_gain = OPT_FILTER_GAIN if opt_filter_gain is None else opt_filter_gain
 
     row = 0
     for ch in channels:
-        data_ch = in_data_0[ch, :]
+        gain = float(sensor_gain.get(ch, sensor_gain.get(str(ch), 1.0)))
+        data_ch = gain * in_data_0[ch, :]
         for filter_name in input_filter_map[ch]:
-            input_current[row, :] = filter_funcs[filter_name](data_ch, t_array, dt)
+            gain_filter = float(filter_gain.get(filter_name, 1.0)) * float(opt_filter_gain.get(filter_name, 1.0))
+            input_current[row, :] = gain_filter * filter_funcs[filter_name](data_ch, t_array, dt)
             row += 1
 
     return input_current
@@ -344,6 +357,8 @@ def reset_dynamic_state(objects: dict, net_cfg: dict):
         group.v = group.v #net_cfg["v_reset"]
         group.I_merkel = 0
         group.I_meissner = 0
+        group.I_RI = 0
+        group.I_SI = 0
         group.I_exc = group.I_exc
         group.I_inh = group.I_inh
         group.H_exc = group.H_exc
@@ -752,6 +767,9 @@ def run_training(rep: int, cfg: dict):
             dt=dt_s,
             input_filter_map=input_filter_map,
             filter_funcs=filter_funcs,
+            sensor_gain=cfg.get("sensor_gain"),
+            filter_gain=cfg.get("filter_gain"),
+            opt_filter_gain=cfg.get("opt_filter_gain"),
         )
 
         input_ta = TimedArray(input_current.T, dt=float(net_cfg["dt_ms"]) * ms)

@@ -1,0 +1,21 @@
+{
+  "source": "g_tactile_results\\ie_gain_005_full_trials_parallel_20261018",
+  "input_gain_removed": 940,
+  "recurrent_gains_removed": {
+    "EE": 0.127,
+    "EI": 0.2,
+    "IE": 0.005
+  },
+  "materials": [
+    "Al_board",
+    "buta_omote",
+    "buta_ura",
+    "cork",
+    "denim",
+    "rubber_board",
+    "washi",
+    "wood_board"
+  ],
+  "sha256": "3ca88a87669e4f3e286c672d1ccc70977a9672a806cf4a55922a6a2e4d9471e1",
+  "purpose": "Fixed topology and original repeated holdout splits; no dated output dependencies at runtime"
+}

@@ -17,8 +17,11 @@
 CFG_NETWORK = {
     # 1) neuron groups
     # Layer counts are inferred from len(N_liq) and len(N_out).
-    "N_liq": [1000],
+    "N_liq": [100],
     "r_inh_liq": 0.2,
+    "liquid_ei_layout": "E_then_I",
+    # None にすると通常の乱数による結合生成を使用する。
+    "calibrated_liquid_weights": "c_configs/FIXED/calibrated_liquid_gain179.npz",
 
     "N_out": [40],
     "r_inh_out": 0,
@@ -28,28 +31,22 @@ CFG_NETWORK = {
     # Key: (channel_index, filter_name)
     # p/scale can be scalars or post-type dicts: {"E": ..., "I": ...}.
     "IN_ROUTE": {
-        (0, "merkel"): {
+        (channel, filter_name): {
             "layers": {
                 0: {
-                    "p": {"E": 0.05, "I": 0.05},
-                    "scale": {"E": 0.01, "I": 0.01},
+                    "p": {"E": 0.05, "I": 0.0},
+                    "scale": {"E": 179.0, "I": 0.0},
                 },
             },
-        },
-        (0, "meissner"): {
-            "layers": {
-                0: {
-                    "p": {"E": 0.05, "I": 0.05},
-                    "scale": {"E": 0.04, "I": 0.04},
-                },
-            },
-        },
+        }
+        for channel in range(3)
+        for filter_name in ("RI", "SI")
     },
 
     # Optional background Poisson spike input.
     # When enabled, this group keeps firing during the whole Brian2 simulation.
     "poisson_input": {
-        "enabled": True,
+        "enabled": False,
         # Use N_ratio to set the number of Poisson neurons as a fraction of
         # each liquid layer size. If N_ratio is None, fixed N is used.
         "N_ratio": None,
@@ -62,8 +59,8 @@ CFG_NETWORK = {
 
     # 3) liquid -> liquid
     "liq_intra_connection": "random",
-    "p_liq_intra_pairs": {"EE": 0.05, "EI": 0.05, "IE": 0.05, "II": 0.00},
-    "liq_intra_gain_pairs": {"EE": 0.1, "EI": 0.1, "IE": 0.1, "II": 0.0},
+    "p_liq_intra_pairs": {"EE": 0.11, "EI": 0.10, "IE": 0.37, "II": 0.10},
+    "liq_intra_gain_pairs": {"EE": 0.150, "EI": 0.206, "IE": 0.01390625, "II": 0.0},
 
     # 4) liquid -> output
     # Shape: list by output layer -> dict by liquid layer -> pair dict.

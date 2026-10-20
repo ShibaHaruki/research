@@ -8,7 +8,7 @@ COMMON_SETS = {
         "NUM_REPEAT": 1,
         "dt_ms": 0.1*1e-3,
 
-        "NUM_SENSOR": 1,
+        "NUM_SENSOR": 3,
         "SLICE_START": 3000,
         "SLICE_END": 8000,
 
