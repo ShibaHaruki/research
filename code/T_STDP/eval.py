@@ -33,8 +33,8 @@ DATASET_FILTERS = sys.argv[2:]
 BASE_SEED = 1
 
 DIR_NAME = [
-    "Al_board", "buta_omote", "buta_ura", "cork",
-    "denim", "rubber_board", "washi", "wood_board"
+    "aluminum_board", "outer_pigskin", "back_pigskin", "cork",
+    "denim", "rubber_board", "Japanese_paper", "wood_board"
 ]
 
 # ---- 数値安定化パラメータ ----

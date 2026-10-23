@@ -113,8 +113,8 @@ def run_once_worker(prefix: str, rep: int, script_dir_str: str):
     project_root = script_dir.parent if script_dir.name == "code" else script_dir.parents[1]
     path = str(project_root) + "/"
 
-    dir_name = ["Al_board", "buta_omote", "buta_ura", "cork",
-                "denim", "rubber_board", "washi", "wood_board"]
+    dir_name = ["aluminum_board", "outer_pigskin", "back_pigskin", "cork",
+                "denim", "rubber_board", "Japanese_paper", "wood_board"]
 
     # --- sample seq ---
     sample_path = script_dir / SAMPLE_SEQ_FMT.format(rep=rep)

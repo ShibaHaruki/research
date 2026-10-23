@@ -35,7 +35,7 @@ CFG_LEARNING_RULE_MODELS = {
         "tau_pre": 15.0,
         "tau_post": 15.0,
         "A_plus": 0.0007,
-        "A_minus": -0.0006,
+        "A_minus": 0.0006, # SRDP式では正の抑圧係数を引く
         "A_pre": 0.00005,
         "A_post": 0.00005,
         "wmin": 0.0,

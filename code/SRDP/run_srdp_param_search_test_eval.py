@@ -35,13 +35,13 @@ from tqdm import tqdm
 
 
 DIR_NAME = [
-    "Al_board",
-    "buta_omote",
-    "buta_ura",
+    "aluminum_board",
+    "outer_pigskin",
+    "back_pigskin",
     "cork",
     "denim",
     "rubber_board",
-    "washi",
+    "Japanese_paper",
     "wood_board",
 ]
 

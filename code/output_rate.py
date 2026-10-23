@@ -31,13 +31,13 @@ WINDOW_MS = 25.0
 
 # 元データの並びに対応する内部名（保存ファイル名用）
 MATERIAL_KEYS = [
-    "Al_board",
-    "buta_omote",
-    "buta_ura",
+    "aluminum_board",
+    "outer_pigskin",
+    "back_pigskin",
     "cork",
     "denim",
     "rubber_board",
-    "washi",
+    "Japanese_paper",
     "wood_board"
 ]
 

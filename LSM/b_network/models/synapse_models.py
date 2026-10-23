@@ -9,8 +9,7 @@ from .model_utils import register_model
 REQUIRED_SYNAPSE_MODEL_KEYS = (
     "eqs",
     "post_eqs",
-    "liq_exc",
-    "liq_inh",
+    "synapse",
 )
 
 REQUIRED_SYNAPSE_KEYS = (
@@ -40,21 +39,14 @@ def synapse_path(
 def current_synapse_model(
     *,
     post_eqs: str,
-    exc: dict,
-    inh: dict,
+    synapse: dict,
     namespace: dict | None = None,
 ) -> dict:
-    register_model({}, "exc", exc, REQUIRED_SYNAPSE_KEYS)
-    register_model({}, "inh", inh, REQUIRED_SYNAPSE_KEYS)
+    register_model({}, "synapse", synapse, REQUIRED_SYNAPSE_KEYS)
     return {
         "eqs": post_eqs,
         "post_eqs": post_eqs,
-        "liq_exc": exc,
-        "liq_inh": inh,
-        "exc": exc,
-        "inh": inh,
-        "out_exc": exc,
-        "out_inh": inh,
+        "synapse": synapse,
         "namespace": namespace or {},
     }
 
@@ -63,25 +55,15 @@ DOUBLE_EXP_POST_EQS = """
 tau_r : second (shared)
 tau_d : second (shared)
 
-dI_exc/dt = -I_exc / tau_d + H_exc : 1
-dH_exc/dt = -H_exc / tau_r : Hz
-
-dI_inh/dt = -I_inh / tau_d + H_inh : 1
-dH_inh/dt = -H_inh / tau_r : Hz
+dI_syn/dt = -I_syn / tau_d + H_syn : 1
+dH_syn/dt = -H_syn / tau_r : Hz
 """
 
-DOUBLE_EXP_EXC_SYNAPSE = synapse_path(
+DOUBLE_EXP_SYNAPSE = synapse_path(
     eqs="w : 1",
-    on_pre="H_exc_post += (w / (tau_r_post * tau_d_post)) / Hz",
+    on_pre="H_syn_post += (w / (tau_r_post * tau_d_post)) / Hz",
     namespace={"Hz": Hz},
 )
-
-DOUBLE_EXP_INH_SYNAPSE = synapse_path(
-    eqs="w : 1",
-    on_pre="H_inh_post += (w / (tau_r_post * tau_d_post)) / Hz",
-    namespace={"Hz": Hz},
-)
-
 
 DOUBLE_EXP_STP_EQS = """
 w : 1
@@ -91,28 +73,16 @@ du_stp/dt = (U_stp - u_stp) / tau_stp_facil : 1 (clock-driven)
 
 DOUBLE_EXP_STP_NS_VARS = ["tau_stp_rec", "tau_stp_facil", "U_stp"]
 
-DOUBLE_EXP_STP_EXC_SYNAPSE = synapse_path(
+DOUBLE_EXP_STP_SYNAPSE = synapse_path(
     eqs=DOUBLE_EXP_STP_EQS,
     on_pre="""
 u_stp += U_stp * (1.0 - u_stp)
-H_exc_post += (w * u_stp * x_stp / (tau_r_post * tau_d_post)) / Hz
+H_syn_post += (w * u_stp * x_stp / (tau_r_post * tau_d_post)) / Hz
 x_stp = clip(x_stp * (1.0 - u_stp), 0.0, 1.0)
 """,
     ns_vars=DOUBLE_EXP_STP_NS_VARS,
     namespace={"Hz": Hz},
 )
-
-DOUBLE_EXP_STP_INH_SYNAPSE = synapse_path(
-    eqs=DOUBLE_EXP_STP_EQS,
-    on_pre="""
-u_stp += U_stp * (1.0 - u_stp)
-H_inh_post += (w * u_stp * x_stp / (tau_r_post * tau_d_post)) / Hz
-x_stp = clip(x_stp * (1.0 - u_stp), 0.0, 1.0)
-""",
-    ns_vars=DOUBLE_EXP_STP_NS_VARS,
-    namespace={"Hz": Hz},
-)
-
 
 SYNAPSE_MODELS: dict[str, dict] = {}
 
@@ -121,8 +91,7 @@ DOUBLE_EXP_MODEL = register_model(
     "double_exp",
     current_synapse_model(
         post_eqs=DOUBLE_EXP_POST_EQS,
-        exc=DOUBLE_EXP_EXC_SYNAPSE,
-        inh=DOUBLE_EXP_INH_SYNAPSE,
+        synapse=DOUBLE_EXP_SYNAPSE,
     ),
     REQUIRED_SYNAPSE_MODEL_KEYS,
 )
@@ -132,8 +101,7 @@ DOUBLE_EXP_STP_MODEL = register_model(
     "double_exp_stp",
     current_synapse_model(
         post_eqs=DOUBLE_EXP_POST_EQS,
-        exc=DOUBLE_EXP_STP_EXC_SYNAPSE,
-        inh=DOUBLE_EXP_STP_INH_SYNAPSE,
+        synapse=DOUBLE_EXP_STP_SYNAPSE,
     ),
     REQUIRED_SYNAPSE_MODEL_KEYS,
 )

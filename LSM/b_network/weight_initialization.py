@@ -1,68 +1,30 @@
-"""入力、リキッド再帰、出力への重み初期値を作る処理。"""
+"""シナプス重みを初期化するモジュール"""
 
 import numpy as np
 
 _EPS = 1e-12
 
-
-def init_in_to_liq(
-    rng: np.random.Generator,
-    n_syn: int,
-    scale: float,
-    N_post: int,
-) -> np.ndarray:
-    """
-    入力 -> Liquid の重み初期化（常に √ 正規化）
-    Kbar = n_syn / N_post をこの関数内で計算する
-    """
+# 入力層からLiquid層への重みを初期化
+def init_in_to_liq(rng: np.random.Generator,n_syn: int,scale: float,N_post: int,) -> np.ndarray:
+    #　半正規分布
     n_syn = int(n_syn)
     N_post = int(N_post)
 
     x = rng.standard_normal(n_syn).astype(float)
+    kbar = max(float(n_syn) / float(max(N_post, 1)), _EPS)
+    return np.abs(x) * float(scale) / np.sqrt(kbar)
 
-    denom = max(N_post, 1)
-    Kbar = max(float(n_syn) / float(denom), _EPS)
-
-    return np.abs(x) * float(scale) / np.sqrt(Kbar)
-
-
-def init_liq_intra(
-    rng: np.random.Generator,
-    n_syn: int,
-    gain: float,
-    N_post: int,
-) -> np.ndarray:
-    """
-    Liquid 内部の重み初期化（常に √ 正規化）
-    Kbar = n_syn / N_post をこの関数内で計算する
-    """
+#Liquid層内のシナプス重みを初期化
+def init_liq_intra(rng: np.random.Generator,n_syn: int,gain: float,N_post: int,) -> np.ndarray:
+    #　半正規分布
     n_syn = int(n_syn)
     N_post = int(N_post)
 
     x = rng.standard_normal(n_syn).astype(float)
-
-    denom = max(N_post, 1)
-    Kbar = max(float(n_syn) / float(denom), _EPS)
-
-    return np.abs(x) * float(gain) / np.sqrt(Kbar)
+    kbar = max(float(n_syn) / float(max(N_post, 1)), _EPS)
+    return np.abs(x) * float(gain) / np.sqrt(kbar)
 
 
-def init_liq_to_out(
-    rng: np.random.Generator,
-    n_syn: int,
-    gain: float,
-    N_post: int,
-) -> np.ndarray:
-    """
-    Liquid -> Output の重み初期化（常に √ 正規化）
-    Kbar = n_syn / N_post をこの関数内で計算する
-    """
-    n_syn = int(n_syn)
-    N_post = int(N_post)
-
-    x = rng.standard_normal(n_syn).astype(float)
-
-    denom = max(N_post, 1)
-    Kbar = max(float(n_syn) / float(denom), _EPS)
-
-    return np.abs(x) * float(gain) / np.sqrt(Kbar)
+def init_liq_to_out(rng, n_syn: int, gain: float, N_post: int) -> np.ndarray:
+    """リキッド→出力を半正規分布と平均入力次数の平方根で初期化する。"""
+    return init_liq_intra(rng, n_syn, gain, N_post)

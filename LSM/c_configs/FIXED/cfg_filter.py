@@ -25,4 +25,10 @@ INPUT_FILTER_MAP = {
     2: ["RI", "SI"],
 }
 
-OPT_FILTER_GAIN = {name: 1.0 for name in FILTER_FUNCS}
+OPT_FILTER_GAIN = {
+    "RI": 1.0,
+    "SI": 1.0,
+    "USI": 1.0,
+    "merkel": 1.0,
+    "meissner": 1.0,
+}

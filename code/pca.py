@@ -16,8 +16,8 @@ matplotlib.rcParams["pdf.use14corefonts"] = False
 # 設定
 # =========================
 DIR_NAME = [
-    "Al_board", "buta_omote", "buta_ura", "cork",
-    "denim", "rubber_board", "washi", "wood_board"
+    "aluminum_board", "outer_pigskin", "back_pigskin", "cork",
+    "denim", "rubber_board", "Japanese_paper", "wood_board"
 ]
 
 DISPLAY_NAMES = [

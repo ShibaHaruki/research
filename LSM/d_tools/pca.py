@@ -1,618 +1,231 @@
-"""内部状態や特徴量に PCA をかけ、2D/3D の図と CSV を保存する処理。"""
+"""Mean-centered PCA of trial x neuron x time-bin states, without scaling.
 
+Accepts (n_trials, n_neurons, n_time_bins), or an already flattened
+(n_trials, n_features) array. Values can be rates, counts, voltages, or other
+finite real states. Each neuron/time pair becomes one feature, in C order.
+Fit only on training trials when evaluating a classifier.
+"""
 from __future__ import annotations
 
-import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 import numpy as np
-import pandas as pd
-
-from .plotting import try_import_pyplot
-from .run_paths import jsonable
-from .separation_metrics import discover_internal_state_files, load_internal_state_dataset
+from scipy.linalg import eigh, svd
 
 
-MARKERS = ["o", "s", "^", "D", "v", "x", "*", "+"]
-COLORS = [
-    "tab:blue",
-    "tab:orange",
-    "tab:green",
-    "tab:red",
-    "tab:purple",
-    "tab:brown",
-    "tab:pink",
-    "tab:gray",
-]
+@dataclass(frozen=True)
+class PCAModel:
+    """Training mean and PCA axes; columns of axes are PC1, PC2, ... ."""
+
+    mean: np.ndarray
+    axes: np.ndarray
+    explained_variance: np.ndarray
+    feature_shape: tuple[int, ...] | None = None
+    total_variance: float | None = None
 
 
-def _stack_class_features(
-    features_by_class: Sequence[np.ndarray],
-    labels: Sequence[str],
-    files_by_class: dict[str, list[str]],
-) -> tuple[np.ndarray, list[str], list[int], list[str]]:
-    rows = []
-    row_labels = []
-    sample_indices = []
-    source_files = []
-
-    for class_index, label in enumerate(labels):
-        features = np.asarray(features_by_class[class_index], dtype=np.float64)
-        files = files_by_class.get(str(label), [])
-        for sample_index in range(features.shape[0]):
-            rows.append(features[sample_index])
-            row_labels.append(str(label))
-            sample_indices.append(sample_index)
-            source_files.append(files[sample_index] if sample_index < len(files) else "")
-
-    if not rows:
-        raise ValueError("No feature rows were loaded for PCA.")
-    return np.vstack(rows), row_labels, sample_indices, source_files
+def _state_features(states: np.ndarray) -> tuple[np.ndarray, tuple[int, ...]]:
+    data = np.asarray(states)
+    if np.iscomplexobj(data):
+        raise ValueError('PCA states must contain real numbers')
+    data = np.asarray(data, dtype=np.float64)
+    if data.ndim not in (2, 3) or any(size == 0 for size in data.shape[1:]):
+        raise ValueError('Expected (trials, neurons, time_bins) or (trials, features) with nonempty feature axes')
+    if not np.isfinite(data).all():
+        raise ValueError('PCA states must be finite; NaN and infinity are not supported')
+    feature_shape = data.shape[1:]
+    return data.reshape(data.shape[0], int(np.prod(feature_shape))), feature_shape
 
 
-def _select_internal_state_files(
-    internal_state_dir: Path,
-    *,
-    max_samples_per_class: int | None = None,
-) -> tuple[list[str], list[str], list[int], list[Path]]:
-    material_to_files = discover_internal_state_files(internal_state_dir)
-    materials = sorted(material_to_files)
-    row_labels: list[str] = []
-    sample_indices: list[int] = []
-    files: list[Path] = []
+def fit_pca(training_features: np.ndarray, n_components: int | None = None) -> PCAModel:
+    """Fit 2D/3D training states; None keeps min(40, features, trials-1) PCs.
 
-    for material in materials:
-        selected = material_to_files[material]
-        if max_samples_per_class is not None:
-            selected = selected[: int(max_samples_per_class)]
-        for sample_index, fp in enumerate(selected):
-            row_labels.append(str(material))
-            sample_indices.append(sample_index)
-            files.append(Path(fp))
-
-    if not files:
-        raise FileNotFoundError(f"No selected internal state files found under {internal_state_dir}")
-    return materials, row_labels, sample_indices, files
-
-
-def _window_mask(
-    t_ms: np.ndarray,
-    *,
-    window_start_ms: float | None = None,
-    window_end_ms: float | None = None,
-) -> np.ndarray | None:
-    if window_start_ms is None and window_end_ms is None:
-        return None
-    t_arr = np.asarray(t_ms, dtype=np.float64)
-    mask = np.ones(t_arr.shape, dtype=bool)
-    if window_start_ms is not None:
-        mask &= t_arr >= float(window_start_ms)
-    if window_end_ms is not None:
-        mask &= t_arr <= float(window_end_ms)
-    if not np.any(mask):
-        raise ValueError("selected internal-state time window is empty.")
-    return mask
-
-
-def _load_x_state(
-    fp: Path,
-    *,
-    n_neurons: int | None = None,
-    n_time: int | None = None,
-    window_start_ms: float | None = None,
-    window_end_ms: float | None = None,
-) -> np.ndarray:
-    with np.load(fp) as data:
-        x_state = np.asarray(data["x_state"], dtype=np.float32)
-        if window_start_ms is not None or window_end_ms is not None:
-            mask = _window_mask(
-                np.asarray(data["t_ms"], dtype=np.float64),
-                window_start_ms=window_start_ms,
-                window_end_ms=window_end_ms,
-            )
-            if mask is not None:
-                x_state = x_state[:, mask]
-
-    if n_neurons is not None:
-        x_state = x_state[: int(n_neurons), :]
-    if n_time is not None:
-        x_state = x_state[:, : int(n_time)]
-    return np.asarray(x_state, dtype=np.float32)
-
-
-def _common_state_shape(
-    files: Sequence[Path],
-    *,
-    window_start_ms: float | None = None,
-    window_end_ms: float | None = None,
-) -> tuple[int, int]:
-    min_neurons: int | None = None
-    min_time: int | None = None
-    for fp in files:
-        x_state = _load_x_state(
-            fp,
-            window_start_ms=window_start_ms,
-            window_end_ms=window_end_ms,
-        )
-        n_neurons, n_time = x_state.shape
-        min_neurons = n_neurons if min_neurons is None else min(min_neurons, n_neurons)
-        min_time = n_time if min_time is None else min(min_time, n_time)
-    if min_neurons is None or min_time is None or min_neurons <= 0 or min_time <= 0:
-        raise ValueError("internal-state files have empty x_state arrays.")
-    return int(min_neurons), int(min_time)
-
-
-def _flatten_x_state(x_state: np.ndarray) -> np.ndarray:
-    return np.asarray(x_state, dtype=np.float64).reshape(-1)
-
-
-def fit_internal_state_flatten_pca(
-    files: Sequence[Path],
-    out_dir: Path,
-    *,
-    n_components: int = 2,
-    standardize: bool = True,
-    window_start_ms: float | None = None,
-    window_end_ms: float | None = None,
-    feature_chunk_size: int = 10000,
-    eps: float = 1e-12,
-) -> dict:
-    """Fit 2D PCA on all liquid neurons and all time steps.
-
-    This follows the same idea as ``StandardScaler`` + covariance PCA, but uses
-    the sample-space Gram matrix so that ``n_neurons * n_time`` can be large.
+    Neuron and time-bin counts are inferred from the input, not fixed here.
+    Only the mean is removed. No standardization or temporal averaging is used.
     """
-
-    # 1000ニューロン×50時間窓のように特徴次元が大きいので、サンプル空間の Gram 行列で計算する。
-    files = [Path(fp) for fp in files]
-    if not files:
-        raise ValueError("No files were provided for PCA.")
-
-    out_dir = Path(out_dir)
-    n_samples = len(files)
-    n_neurons, n_time = _common_state_shape(
-        files,
-        window_start_ms=window_start_ms,
-        window_end_ms=window_end_ms,
-    )
-    n_features = int(n_neurons * n_time)
-
-    sums = np.zeros(n_features, dtype=np.float64)
-    sumsq = np.zeros(n_features, dtype=np.float64)
-    for fp in files:
-        vec = _flatten_x_state(
-            _load_x_state(
-                fp,
-                n_neurons=n_neurons,
-                n_time=n_time,
-                window_start_ms=window_start_ms,
-                window_end_ms=window_end_ms,
-            )
+    train, feature_shape = _state_features(training_features)
+    if train.shape[0] < 2:
+        raise ValueError('PCA requires at least two training trials')
+    max_components = min(train.shape[1], train.shape[0]-1)
+    if n_components is None:
+        n_components = min(40, max_components)
+    if not isinstance(n_components, (int, np.integer)) or isinstance(n_components, bool):
+        raise ValueError('n_components must be an integer')
+    if not 1 <= n_components <= max_components:
+        raise ValueError('n_components must be between 1 and min(n_features, n_training_trials-1)')
+    mean = train.mean(0)
+    centered = train-mean
+    if train.shape[1] <= train.shape[0]:
+        # Preserve the original covariance calculation for the current classifier.
+        values, vectors = eigh(
+            centered.T @ centered/(len(centered)-1),
+            subset_by_index=[train.shape[1]-n_components, train.shape[1]-1],
+            check_finite=False,
         )
-        sums += vec
-        sumsq += vec * vec
-
-    mean = sums / float(n_samples)
-    if standardize:
-        variance = np.maximum(sumsq / float(n_samples) - mean * mean, 0.0)
-        scale = np.sqrt(variance)
-        scale = np.where(scale > eps, scale, 1.0)
+        axes, variance = vectors[:, ::-1], values[::-1]
     else:
-        scale = np.ones(n_features, dtype=np.float64)
+        # Avoid allocating a features x features matrix for wide state arrays.
+        _, singular_values, vectors_t = svd(centered, full_matrices=False, check_finite=False)
+        axes = vectors_t[:n_components].T
+        variance = singular_values[:n_components]**2/(len(centered)-1)
+    total_variance = float(np.einsum('ij,ij->', centered, centered)/(len(centered)-1))
+    return PCAModel(mean=mean, axes=axes, explained_variance=variance,
+                    feature_shape=feature_shape, total_variance=total_variance)
 
-    tmp_fp = out_dir / "_pca_flatten_standardized_float32.dat"
-    x_std = np.memmap(tmp_fp, dtype=np.float32, mode="w+", shape=(n_samples, n_features))
-    try:
-        for row_index, fp in enumerate(files):
-            vec = _flatten_x_state(
-                _load_x_state(
-                    fp,
-                    n_neurons=n_neurons,
-                    n_time=n_time,
-                    window_start_ms=window_start_ms,
-                    window_end_ms=window_end_ms,
-                )
-            )
-            x_std[row_index, :] = ((vec - mean) / scale).astype(np.float32, copy=False)
-        x_std.flush()
 
-        gram = np.zeros((n_samples, n_samples), dtype=np.float64)
-        chunk_size = max(1, int(feature_chunk_size))
-        for start in range(0, n_features, chunk_size):
-            stop = min(start + chunk_size, n_features)
-            chunk = np.asarray(x_std[:, start:stop], dtype=np.float64)
-            gram += chunk @ chunk.T
+def transform_pca(features: np.ndarray, model: PCAModel) -> np.ndarray:
+    """Project trials with matching neuron/time layout using the fitted model."""
+    data, feature_shape = _state_features(features)
+    expected_shape = model.feature_shape or (model.mean.size,)
+    if feature_shape != expected_shape:
+        raise ValueError(f'PCA state shape must match training: expected {expected_shape}, got {feature_shape}')
+    return (data-model.mean) @ model.axes
 
-        eig_values, eig_vectors = np.linalg.eigh(gram)
-        order = np.argsort(eig_values.real)[::-1]
-        eig_values = np.maximum(eig_values.real[order], 0.0)
-        eig_vectors = eig_vectors[:, order].real
 
-        max_components = int(min(n_components, n_samples, eig_vectors.shape[1]))
-        singular_values = np.sqrt(eig_values[:max_components])
-        scores = eig_vectors[:, :max_components] * singular_values[None, :]
+def fit_transform_pca(states: np.ndarray, n_components: int | None = None, *,
+                      output_dir: str | Path | None = None,
+                      bin_ms: float | None = None) -> tuple[np.ndarray, PCAModel]:
+    """Return (trial x PC scores, fitted model) for 2D/3D states.
 
-        components = np.zeros((max_components, n_features), dtype=np.float32)
-        for start in range(0, n_features, chunk_size):
-            stop = min(start + chunk_size, n_features)
-            chunk = np.asarray(x_std[:, start:stop], dtype=np.float64)
-            comp_chunk = np.zeros((max_components, stop - start), dtype=np.float64)
-            for component_index in range(max_components):
-                sv = singular_values[component_index]
-                if sv > eps:
-                    comp_chunk[component_index, :] = (
-                        chunk.T @ eig_vectors[:, component_index]
-                    ) / sv
-            components[:, start:stop] = comp_chunk.astype(np.float32, copy=False)
+    For classification, pass training states here and use transform_pca for
+    evaluation states, rather than fitting the evaluation set separately.
+    """
+    if output_dir is not None and bin_ms is None:
+        raise ValueError('bin_ms is required when saving loading plots')
+    model = fit_pca(states, n_components=n_components)
+    if output_dir is not None:
+        save_loading_plots(model, output_dir, bin_ms=bin_ms)
+    return transform_pca(states, model), model
 
-        denom = max(n_samples - 1, 1)
-        explained_variance = eig_values[:max_components] / float(denom)
-        total_variance = float(np.trace(gram) / float(denom))
-        if total_variance > eps:
-            explained_ratio = explained_variance / total_variance
-        else:
-            explained_ratio = np.zeros_like(explained_variance)
 
-        return {
-            "scores": scores,
-            "components": components,
-            "mean": mean,
-            "scale": scale,
-            "singular_values": singular_values,
-            "explained_variance": explained_variance,
-            "explained_variance_ratio": explained_ratio,
-            "total_variance": total_variance,
-            "n_samples": int(n_samples),
-            "n_features": int(n_features),
-            "n_components": int(max_components),
-            "standardize": bool(standardize),
-            "state_neurons": int(n_neurons),
-            "state_time_steps": int(n_time),
-        }
-    finally:
-        del x_std
+def loading_maps(model: PCAModel, *, feature_shape=None, feature_mask=None,
+                 scaled: bool = True) -> np.ndarray:
+    """係数を「PC×ニューロン×時間ビン」に戻す。
+
+    scaled=Trueは添付図と同じローディング（係数×主成分の標準偏差）。
+    Falseはスコア計算に使う元の係数。時間方向の平均は取らない。
+    2次元入力でPCAした場合はfeature_shape=(ニューロン数, ビン数)を指定する。
+    学習時に特徴を除外した場合は、元の特徴順のboolマスクで0を補う。
+    """
+    shape = tuple(feature_shape) if feature_shape is not None else model.feature_shape
+    if (shape is None or len(shape) != 2
+            or any(not isinstance(size, (int, np.integer)) or isinstance(size, bool) or size <= 0 for size in shape)):
+        raise ValueError('A (n_neurons, n_time_bins) feature_shape is required for loading maps')
+    n_features = int(np.prod(shape))
+    axes = model.axes
+    if feature_mask is not None:
+        mask = np.asarray(feature_mask)
+        if mask.dtype != np.bool_ or mask.shape != (n_features,) or mask.sum() != len(axes):
+            raise ValueError('feature_mask must be a bool vector matching original and retained features')
+        expanded = np.zeros((n_features, axes.shape[1]), dtype=axes.dtype)
+        expanded[mask] = axes
+        axes = expanded
+    elif len(axes) != n_features:
+        raise ValueError('feature_shape does not match PCA features; provide the training feature_mask if needed')
+    if scaled:
+        axes = axes * np.sqrt(np.maximum(model.explained_variance, 0.))
+    return axes.T.reshape((axes.shape[1], *shape))
+
+
+def temporal_loading_profiles(model: PCAModel, *, feature_shape=None,
+                               feature_mask=None) -> np.ndarray:
+    """各PCのローディングをニューロン方向に符号付き平均する（PC×時間）。"""
+    return loading_maps(model, feature_shape=feature_shape, feature_mask=feature_mask).mean(axis=1)
+
+
+def save_loading_plots(model: PCAModel, output_dir: str | Path, *, bin_ms: float,
+                       feature_shape=None, feature_mask=None, max_components: int = 40,
+                       population_label: str = 'Neurons', title_note: str = '',
+                       dpi: int = 150) -> dict[str, Path]:
+    """ローディングヒートマップ・時間波形・横並び図と数値データを保存する。
+
+    色範囲は全PCで共通、波形は帯なしのニューロン平均。
+    時間座標はビン中心。ニューロン数・ビン数・PC数を固定しない。
+    分類評価では学習試行だけでfitしたmodelを渡す。
+    """
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    if not np.isfinite(bin_ms) or bin_ms <= 0:
+        raise ValueError('bin_ms must be finite and positive')
+    if not isinstance(max_components, (int, np.integer)) or isinstance(max_components, bool) or max_components < 1:
+        raise ValueError('max_components must be a positive integer')
+    maps = loading_maps(model, feature_shape=feature_shape, feature_mask=feature_mask)
+    coefficients = loading_maps(model, feature_shape=feature_shape, feature_mask=feature_mask, scaled=False)
+    n_pc = min(max_components, len(maps))
+    maps = maps[:n_pc]; coefficients = coefficients[:n_pc]
+    profiles = maps.mean(axis=1)
+    n_neurons, n_bins = maps.shape[1:]
+    time_ms = (np.arange(n_bins)+.5)*float(bin_ms)
+    duration_ms = n_bins*float(bin_ms)
+    ratio = (np.maximum(model.explained_variance[:n_pc], 0.)/model.total_variance
+             if model.total_variance is not None and model.total_variance > 0 else None)
+    vmax = float(np.max(np.abs(maps))) or 1.
+    columns = min(5, n_pc); rows = (n_pc+columns-1)//columns
+    output = Path(output_dir); output.mkdir(parents=True, exist_ok=True)
+    prefix = f'PC01_PC{n_pc:02d}'
+    paths = {
+        'heatmaps': output/f'{prefix}_loading_heatmaps.png',
+        'temporal_profiles': output/f'{prefix}_temporal_loading_profiles.png',
+        'combined': output/f'{prefix}_loadings_and_temporal_profiles.png',
+        'data': output/f'{prefix}_loading_data.npz',
+    }
+    note = f' | {title_note}' if title_note else ''
+
+    def draw(container, kind):
+        axes = np.asarray(container.subplots(rows, columns, squeeze=False)).ravel()
+        image = None
+        for k, ax in enumerate(axes):
+            if k >= n_pc:
+                ax.set_visible(False); continue
+            label = f'PC{k+1}' + (f' ({ratio[k]*100:.2f}%)' if ratio is not None else '')
+            ax.set_title(label, fontsize=9)
+            if kind == 'heatmap':
+                image = ax.imshow(maps[k], origin='lower', aspect='auto', interpolation='nearest',
+                    extent=(0, duration_ms, -.5, n_neurons-.5), cmap='RdBu_r', vmin=-vmax, vmax=vmax)
+                if k % columns == 0:
+                    ax.set_ylabel('Neuron index', fontsize=8)
+            else:
+                ax.plot(time_ms, profiles[k], color='tab:blue', lw=1.,
+                        marker='o' if n_bins == 1 else None)
+                ax.axhline(0, color='0.5', lw=.6)
+                ax.set_xlim(0, duration_ms)
+                ax.grid(True, alpha=.18)
+                if k % columns == 0:
+                    ax.set_ylabel('Mean loading', fontsize=8)
+            ax.tick_params(labelsize=7)
+            if k//columns == rows-1:
+                ax.set_xlabel('Time within trial (ms)', fontsize=8)
+        if kind == 'heatmap':
+            container.colorbar(image, ax=list(axes[:n_pc]), shrink=.8,
+                label='Loading (coefficient x component standard deviation)')
+
+    # 1枚ずつでも横並びでも、列数・行数と基本の小グラフの比をそろえる。
+    width, height = columns*3., max(3., rows*2.5)
+    for key, kind, title in [
+            ('heatmaps', 'heatmap', 'PCA loadings: neuron x time'),
+            ('temporal_profiles', 'waveform', 'Temporal loading profiles of PCA components')]:
+        fig = plt.figure(figsize=(width, height), layout='constrained')
         try:
-            tmp_fp.unlink()
-        except FileNotFoundError:
-            pass
-        except PermissionError:
-            pass
-
-
-def fit_pca(
-    X: np.ndarray,
-    *,
-    n_components: int = 2,
-    standardize: bool = True,
-    eps: float = 1e-12,
-) -> dict:
-    """Fit PCA with NumPy SVD and return scores/components/variance."""
-
-    # 通常サイズの特徴行列には SVD を直接かける。必要なら列ごとに標準化する。
-    x = np.asarray(X, dtype=np.float64)
-    if x.ndim != 2:
-        raise ValueError(f"X must be 2D, got shape={x.shape}")
-    if x.shape[0] == 0 or x.shape[1] == 0:
-        raise ValueError(f"X must be non-empty, got shape={x.shape}")
-
-    mean = np.mean(x, axis=0)
-    centered = x - mean
-    if standardize:
-        scale = np.std(centered, axis=0, ddof=1 if x.shape[0] > 1 else 0)
-        scale = np.where(scale > eps, scale, 1.0)
-    else:
-        scale = np.ones(x.shape[1], dtype=np.float64)
-    work = centered / scale
-
-    _, singular_values, vt = np.linalg.svd(work, full_matrices=False)
-    max_components = int(min(n_components, vt.shape[0]))
-    components = vt[:max_components]
-    scores = work @ components.T
-
-    denom = max(x.shape[0] - 1, 1)
-    explained_variance_all = (singular_values * singular_values) / float(denom)
-    total_variance = float(np.sum(explained_variance_all))
-    explained_variance = explained_variance_all[:max_components]
-    if total_variance > eps:
-        explained_ratio = explained_variance / total_variance
-    else:
-        explained_ratio = np.zeros_like(explained_variance)
-
-    return {
-        "scores": scores,
-        "components": components,
-        "mean": mean,
-        "scale": scale,
-        "singular_values": singular_values[:max_components],
-        "explained_variance": explained_variance,
-        "explained_variance_ratio": explained_ratio,
-        "total_variance": total_variance,
-        "n_samples": int(x.shape[0]),
-        "n_features": int(x.shape[1]),
-        "n_components": int(max_components),
-        "standardize": bool(standardize),
-    }
-
-
-def _save_scores_csv(
-    out_dir: Path,
-    pca_result: dict,
-    labels: Sequence[str],
-    sample_indices: Sequence[int],
-    source_files: Sequence[str],
-) -> Path:
-    scores = np.asarray(pca_result["scores"], dtype=np.float64)
-    rows = {
-        "material": list(labels),
-        "sample_index_in_material": list(sample_indices),
-        "source_file": list(source_files),
-    }
-    for component_index in range(scores.shape[1]):
-        rows[f"PC{component_index + 1}"] = scores[:, component_index]
-    out_fp = Path(out_dir) / "pca_scores.csv"
-    pd.DataFrame(rows).to_csv(out_fp, index=False)
-    return out_fp
-
-
-def _save_explained_variance(out_dir: Path, pca_result: dict) -> tuple[Path, Path]:
-    ratios = np.asarray(pca_result["explained_variance_ratio"], dtype=np.float64)
-    variances = np.asarray(pca_result["explained_variance"], dtype=np.float64)
-    df = pd.DataFrame(
-        {
-            "component": [f"PC{i + 1}" for i in range(len(ratios))],
-            "explained_variance": variances,
-            "explained_variance_ratio": ratios,
-            "cumulative_explained_variance_ratio": np.cumsum(ratios),
-        }
-    )
-    csv_fp = Path(out_dir) / "pca_explained_variance.csv"
-    df.to_csv(csv_fp, index=False)
-
-    plot_fp = Path(out_dir) / "pca_explained_variance.png"
-    plt = try_import_pyplot()
-    if plt is None:
-        return csv_fp, plot_fp
-
-    plt.figure(figsize=(8, 4))
-    x = np.arange(1, len(ratios) + 1)
-    plt.bar(x, ratios, alpha=0.75, label="explained")
-    plt.plot(x, np.cumsum(ratios), marker="o", color="black", label="cumulative")
-    plt.xlabel("Principal component")
-    plt.ylabel("Explained variance ratio")
-    plt.xticks(x)
-    plt.ylim(0, max(1.0, float(np.max(np.cumsum(ratios))) if len(ratios) else 1.0))
-    plt.grid(True, axis="y", alpha=0.25)
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(plot_fp, dpi=150)
-    plt.close()
-    return csv_fp, plot_fp
-
-
-def _scatter_scores_2d(
-    plt,
-    scores: np.ndarray,
-    labels: Sequence[str],
-    x_index: int,
-    y_index: int,
-    plot_fp: Path,
-) -> Path:
-    unique_labels = list(dict.fromkeys(str(label) for label in labels))
-
-    plt.figure(figsize=(8.5, 6.5))
-    for label_index, label in enumerate(unique_labels):
-        mask = np.asarray([str(item) == label for item in labels], dtype=bool)
-        plt.scatter(
-            scores[mask, x_index],
-            scores[mask, y_index],
-            c=COLORS[label_index % len(COLORS)],
-            marker=MARKERS[label_index % len(MARKERS)],
-            s=35,
-            linewidths=1.0,
-            alpha=0.8,
-            label=label,
-        )
-    plt.xlabel(f"PC{x_index + 1}", fontsize=14)
-    plt.ylabel(f"PC{y_index + 1}", fontsize=14)
-    plt.title(f"Internal state PCA: PC{x_index + 1} vs PC{y_index + 1}", fontsize=18)
-    if len(unique_labels) <= 12:
-        plt.legend(fontsize=11, ncol=2)
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
-    plt.tight_layout()
-    plt.savefig(plot_fp, dpi=150)
-    plt.close()
-    return plot_fp
-
-
-def _scatter_scores_3d(
-    plt,
-    scores: np.ndarray,
-    labels: Sequence[str],
-    plot_fp: Path,
-) -> Path:
-    unique_labels = list(dict.fromkeys(str(label) for label in labels))
-
-    fig = plt.figure(figsize=(8, 6))
-    ax = fig.add_subplot(111, projection="3d")
-    for label in unique_labels:
-        mask = np.asarray([str(item) == label for item in labels], dtype=bool)
-        ax.scatter(
-            scores[mask, 0],
-            scores[mask, 1],
-            scores[mask, 2],
-            s=30,
-            alpha=0.55,
-            edgecolors="black",
-            linewidths=0.25,
-            label=label,
-        )
-    ax.set_xlabel("PC1")
-    ax.set_ylabel("PC2")
-    ax.set_zlabel("PC3")
-    ax.set_title("Internal state PCA: PC1/PC2/PC3")
-    if len(unique_labels) <= 12:
-        ax.legend(fontsize=8)
-    plt.tight_layout()
-    plt.savefig(plot_fp, dpi=150)
-    plt.close()
-    return plot_fp
-
-
-def _save_score_plots(out_dir: Path, pca_result: dict, labels: Sequence[str]) -> list[Path]:
-    scores = np.asarray(pca_result["scores"], dtype=np.float64)
-    if scores.shape[1] < 2:
-        return []
-    plt = try_import_pyplot()
-    if plt is None:
-        return []
-
-    out_dir = Path(out_dir)
-    plot_fps = [
-        _scatter_scores_2d(
-            plt,
-            scores,
-            labels,
-            0,
-            1,
-            out_dir / "pca_scores_pc1_pc2.png",
-        )
-    ]
-    if scores.shape[1] >= 3:
-        plot_fps.append(
-            _scatter_scores_2d(
-                plt,
-                scores,
-                labels,
-                0,
-                2,
-                out_dir / "pca_scores_pc1_pc3.png",
-            )
-        )
-        plot_fps.append(
-            _scatter_scores_2d(
-                plt,
-                scores,
-                labels,
-                1,
-                2,
-                out_dir / "pca_scores_pc2_pc3.png",
-            )
-        )
-        plot_fps.append(
-            _scatter_scores_3d(
-                plt,
-                scores,
-                labels,
-                out_dir / "pca_scores_pc1_pc2_pc3_3d.png",
-            )
-        )
-    return plot_fps
-
-
-def _write_summary(out_dir: Path, payload: dict) -> Path:
-    out_fp = Path(out_dir) / "pca_summary.json"
-    out_fp.write_text(
-        json.dumps(jsonable(payload), indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    return out_fp
-
-
-def save_internal_state_pca(
-    internal_state_dir: Path,
-    out_dir: Path,
-    *,
-    feature_mode: str = "flatten",
-    n_components: int = 2,
-    standardize: bool = True,
-    max_samples_per_class: int | None = None,
-    window_start_ms: float | None = None,
-    window_end_ms: float | None = None,
-) -> dict:
-    """Load liquid internal states, fit PCA, and save PCA artifacts."""
-
-    # Save PCA artifacts directly into the requested PCA directory.
-    out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    feature_mode_key = str(feature_mode).lower()
-    if feature_mode_key in {"flatten", "all", "all_time", "all_neurons_all_time"}:
-        labels, row_labels, sample_indices, files = _select_internal_state_files(
-            internal_state_dir,
-            max_samples_per_class=max_samples_per_class,
-        )
-        source_files = [str(fp) for fp in files]
-        pca_result = fit_internal_state_flatten_pca(
-            files,
-            out_dir,
-            n_components=n_components,
-            standardize=standardize,
-            window_start_ms=window_start_ms,
-            window_end_ms=window_end_ms,
-        )
-    else:
-        dataset = load_internal_state_dataset(
-            internal_state_dir,
-            feature_mode=feature_mode,
-            max_samples_per_class=max_samples_per_class,
-            window_start_ms=window_start_ms,
-            window_end_ms=window_end_ms,
-            load_trajectories=False,
-        )
-        labels = list(dataset["materials"])
-        X, row_labels, sample_indices, source_files = _stack_class_features(
-            dataset["features_by_class"],
-            labels,
-            dataset["files_by_class"],
-        )
-        pca_result = fit_pca(X, n_components=n_components, standardize=standardize)
-
-    scores_fp = _save_scores_csv(out_dir, pca_result, row_labels, sample_indices, source_files)
-    variance_csv_fp, variance_plot_fp = _save_explained_variance(out_dir, pca_result)
-    score_plot_fps = _save_score_plots(out_dir, pca_result, row_labels)
-    rounded_scores = np.round(np.asarray(pca_result["scores"], dtype=np.float64), decimals=12)
-    unique_score_rows = int(np.unique(rounded_scores, axis=0).shape[0])
-    model_fp = out_dir / "pca_model.npz"
-    np.savez_compressed(
-        model_fp,
-        scores=pca_result["scores"],
-        components=pca_result["components"],
-        mean=pca_result["mean"],
-        scale=pca_result["scale"],
-        singular_values=pca_result["singular_values"],
-        explained_variance=pca_result["explained_variance"],
-        explained_variance_ratio=pca_result["explained_variance_ratio"],
-        labels=np.asarray(row_labels, dtype=object),
-        source_files=np.asarray(source_files, dtype=object),
-    )
-
-    summary = {
-        "internal_state_dir": str(Path(internal_state_dir)),
-        "out_dir": str(out_dir),
-        "feature_mode": feature_mode,
-        "n_components": pca_result["n_components"],
-        "requested_components": int(n_components),
-        "standardize": bool(standardize),
-        "max_samples_per_class": max_samples_per_class,
-        "window_start_ms": window_start_ms,
-        "window_end_ms": window_end_ms,
-        "n_samples": pca_result["n_samples"],
-        "n_features": pca_result["n_features"],
-        "state_neurons": pca_result.get("state_neurons"),
-        "state_time_steps": pca_result.get("state_time_steps"),
-        "unique_score_rows_rounded_12": unique_score_rows,
-        "materials": labels,
-        "scores_csv": str(scores_fp),
-        "explained_variance_csv": str(variance_csv_fp),
-        "explained_variance_plot": (
-            str(variance_plot_fp) if Path(variance_plot_fp).exists() else ""
-        ),
-        "scores_plot": str(score_plot_fps[0]) if score_plot_fps else "",
-        "score_plots": [str(path) for path in score_plot_fps],
-        "model_npz": str(model_fp),
-    }
-    summary_fp = _write_summary(out_dir, summary)
-    summary["summary_json"] = str(summary_fp)
-    return summary
+            fig.suptitle(f'{title} | {population_label} | PC1-PC{n_pc}{note}', fontsize=12)
+            draw(fig, kind)
+            fig.savefig(paths[key], dpi=dpi)
+        finally:
+            plt.close(fig)
+    fig = plt.figure(figsize=(width*2, height), layout='constrained')
+    try:
+        left, right = fig.subfigures(1, 2)
+        left.suptitle(f'PCA loadings | {population_label}{note}', fontsize=12)
+        right.suptitle(f'Temporal loading profiles | {population_label}{note}', fontsize=12)
+        draw(left, 'heatmap'); draw(right, 'waveform')
+        fig.savefig(paths['combined'], dpi=dpi)
+    finally:
+        plt.close(fig)
+    np.savez_compressed(paths['data'], coefficients=coefficients, loadings=maps,
+        mean_temporal_loadings=profiles, time_ms=time_ms, feature_shape=np.array((n_neurons, n_bins)),
+        explained_variance=model.explained_variance[:n_pc],
+        explained_variance_ratio=np.array([]) if ratio is None else ratio,
+        total_variance=np.nan if model.total_variance is None else model.total_variance,
+        title_note=title_note, loading_definition='coefficient * sqrt(explained_variance)')
+    return paths

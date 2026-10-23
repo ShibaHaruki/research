@@ -15,24 +15,18 @@ REQUIRED_NEURON_KEYS = (
 
 
 COMMON_NEURON_MODEL_PARAMETERS = """
-I_merkel   : 1
-I_meissner : 1
-I_RI       : 1
-I_SI       : 1
-I_in = I_RI + I_SI + I_merkel + I_meissner : 1
+                                    tau_m : second
+                                    t_ref : second
 
-tau_m : second
-t_ref : second
+                                    bias   : 1 (shared)
+                                    v_thr  : 1
+                                    v_reset: 1
 
-bias   : 1 (shared)
-v_thr  : 1 (shared)
-v_reset: 1 (shared)
-
-x : 1 (constant)
-y : 1 (constant)
-z : 1 (constant)
-typ : integer (constant)
-"""
+                                    x : 1 (constant)
+                                    y : 1 (constant)
+                                    z : 1 (constant)
+                                    typ : integer (constant)
+                                 """
 
 
 def neuron_model(
@@ -58,17 +52,28 @@ def neuron_model(
 
 NEURON_MODELS: dict[str, dict] = {}
 
-LIF_MODEL = register_model(
-    NEURON_MODELS,
-    "LIF",
-    neuron_model(
+def _make_lif_model() -> dict:
+    return neuron_model(
         eqs=COMMON_NEURON_MODEL_PARAMETERS + """
-dv/dt = (-v + bias + I_in - I_inh + I_exc) / tau_m : 1 (unless refractory)
-""",
+            dv/dt = (-v + bias + I_in + I_syn) / tau_m : 1 (unless refractory)
+            """,
         threshold="v >= v_thr",
         reset="v = v_reset",
         refractory="timestep(t - lastspike, dt) <= timestep(t_ref, dt)",
-    ),
+    )
+
+# The E/I groups use separate Brian2 model registrations. Their parameters
+# are assigned independently during network construction.
+LIF_E_MODEL = register_model(
+    NEURON_MODELS,
+    "LIF_E",
+    _make_lif_model(),
+    REQUIRED_NEURON_KEYS,
+)
+LIF_I_MODEL = register_model(
+    NEURON_MODELS,
+    "LIF_I",
+    _make_lif_model(),
     REQUIRED_NEURON_KEYS,
 )
 

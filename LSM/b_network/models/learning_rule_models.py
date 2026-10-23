@@ -77,7 +77,7 @@ dAminus2/dt = -Aminus2/tau_minus2 : 1 (event-driven)
         on_pre="""
 Aplus1 += A2_plus
 Aplus2 += A3_plus
-w = clip(w + (Aminus1 + Aminus2), wmin, wmax)
+w = clip(w - (Aminus1 + Aminus2), wmin, wmax)
 """,
         on_post="""
 Aminus1 += A2_minus

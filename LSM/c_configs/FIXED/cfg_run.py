@@ -1,8 +1,15 @@
-"""実行回数、保存先、デバッグ、VAE、CMA-ES などの実行全体設定。"""
+"""実行回数、保存先、デバッグ、VAE などの実行全体設定。"""
 
 # FIXED/cfg_run.py
 
 CFG_RUN = {
+    "LIQUID_STATE_POLICY": "carry",
+    "LIQUID_DURATION_MS": 500.0,
+    "LIQUID_DEBUG_ENABLE": True,
+    "DEBUG_EACH_MATERIAL": True,  # 学習・テスト終了後、別ネットワークで各素材1回確認する。
+    "DEBUG_TRIAL_ID": 203,
+    "READOUT_STATE_POLICY": "carry",  # 膜電位・シナプス状態を次の試行へ引き継ぐ。
+    "READOUT_DURATION_MS": 500.0,
     "RESULTS_DIR": "g_tactile_results",
     "TACTILE_DATA_ROOT": "..",
     "TACTILE_DATA_DIR_NAME": "tactile_data",
@@ -12,7 +19,7 @@ CFG_RUN = {
     "TEST_RESULT_DIR": "test_run",
     "SPIKE_COUNT_DIR": "spike_counts",
     "DEBUG_DIR": "debug",
-    "LIQUID_RESULT_DIR": "liquid_run",
+    "LIQUID_RESULT_DIR": "liquid_run1",
     "WEIGHT_CHANGE_DIR": "weight_changes",
 
     "CACHE_DIR": "_runtime_cache",
@@ -31,7 +38,8 @@ CFG_RUN = {
 
     "DEBUG_VOLTAGE_NEURONS": 10,
     "DEBUG_VOLTAGE_DT_MS": 0.1,
-    "LIVE_PLOT_ENABLE": True,
+    "DEBUG_FIRING_RATE_BIN_MS": 25.0,
+    "LIVE_PLOT_ENABLE": False,
     "LIVE_PLOT_BACKEND": "TkAgg",
     "LIVE_PLOT_FIRST_SAMPLE_ONLY": False,
     "LIVE_RASTER_ENABLE": True,
@@ -53,8 +61,8 @@ CFG_RUN = {
     "PCA_DIR": "pca",
     "INTERNAL_STATE_PCA_ENABLE": True,
     "INTERNAL_STATE_PCA_FEATURE_MODE": "flatten",
-    "INTERNAL_STATE_PCA_COMPONENTS": 40,
-    "INTERNAL_STATE_PCA_STANDARDIZE": False,
+    "INTERNAL_STATE_PCA_COMPONENTS": 20,
+    "INTERNAL_STATE_PCA_STANDARDIZE": True,
     "INTERNAL_STATE_PCA_MAX_SAMPLES_PER_CLASS": None,
     "INTERNAL_STATE_PCA_WINDOW_START_MS": None,
     "INTERNAL_STATE_PCA_WINDOW_END_MS": None,
@@ -71,7 +79,6 @@ CFG_RUN = {
     "INTERNAL_STATE_VAE_DEVICE": "auto",
     "INTERNAL_STATE_VAE_STANDARDIZE": True,
     "INTERNAL_STATE_VAE_MAX_SAMPLES_PER_CLASS": None,
-    "CMA_ES_RESULT_DIR": "cma_es_search",
     "EXPERIMENT_MAX_WORKERS": 1,
     "EXPERIMENT_DISABLE_INNER_MP": True,
     "EVAL_N_FOLDS": 10,

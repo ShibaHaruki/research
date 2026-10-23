@@ -25,9 +25,9 @@ LEARNING_RULE_SPACE = {
         "A2_plus":    [3e-4, 7e-4, 1e-3],
         "A3_plus":    [1e-8, 5e-8, 1e-7],
 
-        # 符号も探索したいなら ± を入れておく（最終的には学習則の更新式と整合させる）
-        "A2_minus":   [-6e-4, 6e-4],
-        "A3_minus":   [-5e-8, 5e-8],
+        # T-STDPの抑圧項は正の値を更新式内で引く。
+        "A2_minus":   [3e-4, 6e-4, 1e-3],
+        "A3_minus":   [1e-8, 5e-8, 1e-7],
 
         "wmin":       [0.0],
         "wmax":       [1.0],
@@ -39,7 +39,7 @@ LEARNING_RULE_SPACE = {
         "tau_pre":   [10, 15, 20],
         "tau_post":  [10, 15, 20],
         "A_plus":    [3e-4, 7e-4, 1e-3],
-        "A_minus":   [-3e-4, -6e-4, -1e-3],
+        "A_minus":   [3e-4, 6e-4, 1e-3],
         "A_pre":     [1e-5, 5e-5, 1e-4],
         "A_post":    [1e-5, 5e-5, 1e-4],
         "wmin":      [0.0],

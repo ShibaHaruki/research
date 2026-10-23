@@ -10,7 +10,28 @@ from itertools import product
 from pathlib import Path
 from typing import Any
 
-from .run_paths import jsonable, safe_stem
+import re
+import numpy as np
+
+
+def safe_stem(value):
+    result = re.sub(r"[^\w.-]+", "_", str(value)).strip("._")
+    if not result:
+        raise ValueError("Experiment/trial name must contain usable characters")
+    return result
+
+
+def jsonable(value):
+    if isinstance(value, dict):
+        return {str(key): jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [jsonable(item) for item in value]
+    if isinstance(value, (np.integer, np.floating)):
+        return value.item()
+    if isinstance(value, Path):
+        return str(value)
+    return value
+
 
 
 MANIFEST_FIELDS = (
@@ -87,13 +108,16 @@ def set_by_path(config: dict[str, Any], path: Any, value: Any) -> None:
         if last in current:
             current[last] = value
         else:
-            current[_dict_key(current, str(last))] = value
+            key = _dict_key(current, str(last))
+            if key not in current:
+                raise KeyError(f"Unknown override key: {path}")
+            current[key] = value
     else:
         raise TypeError(f"Cannot set '{path}' on {type(current).__name__}.")
 
 
 def apply_overrides(config: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
-    # EXPERIMENT/CMA-ES から渡された dot-path の上書きを cfg に反映する。
+    # EXPERIMENT から渡された dot-path の上書きを cfg に反映する。
     cfg = deepcopy(config)
     for path, value in (overrides or {}).items():
         set_by_path(cfg, path, deepcopy(value))

@@ -1,37 +1,31 @@
-"""LSM の層数、ニューロン数、接続確率、スケールなどのネットワーク固定設定。"""
+"""採用したgain179条件のネットワーク設定。
 
-# FIXED/cfg_network.py
-#
-# Processing order:
-# 1. neuron groups
-# 2. input -> liquid
-# 3. liquid -> liquid
-# 4. liquid -> output
-#
-# Pair labels:
-# EE: excitatory -> excitatory
-# EI: excitatory -> inhibitory
-# IE: inhibitory -> excitatory
-# II: inhibitory -> inhibitory
+入力179、EE 0.150、EI 0.206、IE 0.01390625、II 0。
+3センサーそれぞれのRI/SIをEへ接続し、Iへの直接入力は使わない。
+"""
 
 CFG_NETWORK = {
-    # 1) neuron groups
-    # Layer counts are inferred from len(N_liq) and len(N_out).
+    # リキッド層：E80個、I20個。
     "N_liq": [100],
     "r_inh_liq": 0.2,
-    "liquid_ei_layout": "E_then_I",
-    # None にすると通常の乱数による結合生成を使用する。
-    "calibrated_liquid_weights": "c_configs/FIXED/calibrated_liquid_gain179.npz",
 
+    # 出力層：旧LSMの40個・全興奮性、固定重みから開始する。
+    "output_enabled": True,
     "N_out": [40],
-    "r_inh_out": 0,
+    # E→出力は11%。平均入力次数8.8本、全出力40個が入力を持つ確率は約99.64%。
+    # I→出力は結合を作らない。実際の入力0本の有無は校正時に確認する。
+    "p_liq_to_out_pairs": [{"EE": 0.11, "EI": 0.0, "IE": 0.0, "II": 0.0}],
+    # gainは結合確率10%での校正値。11%で発火率を合わせる場合は再校正する。
+    "gain_liq_to_out_pairs": [{"EE": 0.2963, "EI": 0.0, "IE": 0.0, "II": 0.0}],
 
-    # 2) input -> liquid
-    # Use IN_ROUTE when you want per-filter input settings.
-    # Key: (channel_index, filter_name)
-    # p/scale can be scalars or post-type dicts: {"E": ..., "I": ...}.
+    # 入力条件はIN_ROUTEへ明示するため、共有設定による上書きは無効。
+    "SHARED_IN_ROUTE": {"enabled": False, "filters": {}},
+
+    # 3センサー × RI/SI の計6経路。
+    # 各経路→Eは5%、gain179。各経路→Iは確率・gainともに0。
+    # 結合先と重みはBASE_SEEDで固定し、従来の検証条件を再現する。
     "IN_ROUTE": {
-        (channel, filter_name): {
+        (sensor, filter_name): {
             "layers": {
                 0: {
                     "p": {"E": 0.05, "I": 0.0},
@@ -39,16 +33,13 @@ CFG_NETWORK = {
                 },
             },
         }
-        for channel in range(3)
+        for sensor in range(3)
         for filter_name in ("RI", "SI")
     },
 
-    # Optional background Poisson spike input.
-    # When enabled, this group keeps firing during the whole Brian2 simulation.
+    # 背景ポアソン入力は使わない。
     "poisson_input": {
         "enabled": False,
-        # Use N_ratio to set the number of Poisson neurons as a fraction of
-        # each liquid layer size. If N_ratio is None, fixed N is used.
         "N_ratio": None,
         "N": 100,
         "rate_hz": 5.0,
@@ -57,17 +48,8 @@ CFG_NETWORK = {
         "scale": {"E": 0.2, "I": 0.2},
     },
 
-    # 3) liquid -> liquid
+    # リキッド層内の結合。II確率は残すが、gain0でIIの作用を無効にする。
     "liq_intra_connection": "random",
     "p_liq_intra_pairs": {"EE": 0.11, "EI": 0.10, "IE": 0.37, "II": 0.10},
     "liq_intra_gain_pairs": {"EE": 0.150, "EI": 0.206, "IE": 0.01390625, "II": 0.0},
-
-    # 4) liquid -> output
-    # Shape: list by output layer -> dict by liquid layer -> pair dict.
-    "p_liq_to_out_pairs": [
-        {"EE": 0.8, "EI": 0.0, "IE": 0.2, "II": 0.0}
-    ],
-    "gain_liq_to_out_pairs": [
-        {"EE": 0.6, "EI": 0.5, "IE": 0.4, "II": 0.5}
-    ],
 }

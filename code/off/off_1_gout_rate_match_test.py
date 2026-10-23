@@ -24,8 +24,8 @@ DATA_ROOT = SCRIPT_PATH.parents[1]
 path = str(DATA_ROOT) + "/"
 
 dir_name = [
-    "Al_board", "buta_omote", "buta_ura", "cork",
-    "denim", "rubber_board", "washi", "wood_board"
+    "aluminum_board", "outer_pigskin", "back_pigskin", "cork",
+    "denim", "rubber_board", "Japanese_paper", "wood_board"
 ]
 
 # =========================================
