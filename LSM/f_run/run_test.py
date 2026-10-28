@@ -6,12 +6,12 @@ import sys
 ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
 import numpy as np
-from f_run.run_common import (load_cfg, training_directory, test_directory, build_runtime,
+from a_tactile.paths import training_directory, test_directory
+from f_run.run_common import (load_cfg, build_runtime,
     debug_readout_materials, run_trial, validate_cfg, write_json, snapshot)
 from d_tools.weight_export import load_weights
 from f_run.run_common import build_cfg
 
-TEST_RESULT_DIR=ROOT/'g_tactile_results/test_run'
 training_output_dir_for_cfg=training_directory
 test_output_dir_for_training_dir=test_directory
 

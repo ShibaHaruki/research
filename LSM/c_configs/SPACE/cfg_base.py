@@ -1,9 +1,9 @@
 """探索に使用するモデル・構造候補。定義だけでは通常のFIXED設定を変更しない。"""
 
-CFG_STRUCT = {"NETWORK_PRESET": ["liq1_100__out1_40"]}
-# 旧プリセット名から、現在のネットワーク設定へ対応を明示する。
+CFG_STRUCT = {"NETWORK_PRESET": ["liq1_100__out1_80"]}
+# プリセット名から、現在のネットワーク設定へ対応を明示する。
 NETWORK_PRESETS = {
-    "liq1_100__out1_40": {"N_liq": [100], "r_inh_liq": 0.2, "N_out": [40]},
+    "liq1_100__out1_80": {"N_liq": [100], "r_inh_liq": 0.2, "N_out": [80]},
 }
 CFG_BASE = {
     "NEURON_PRESET": ["LIF_default"],

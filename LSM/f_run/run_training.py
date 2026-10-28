@@ -8,11 +8,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path: sys.path.insert(0, str(ROOT))
 import numpy as np
 import pandas as pd
-from f_run.run_common import (validate_cfg, sample_split, training_directory, snapshot, encode,
+from a_tactile.paths import training_directory
+from f_run.run_common import (validate_cfg, sample_split, snapshot, encode,
     debug_readout_materials, write_json, build_runtime, run_trial, add_training_arguments, cfg_from_args)
 from d_tools.weight_export import save_weights, weight_summary
-
-TRAINING_RESULT_DIR = ROOT/'g_tactile_results/training_run'
 
 def run_training(rep: int, cfg: dict) -> str:
     cfg = deepcopy(cfg)

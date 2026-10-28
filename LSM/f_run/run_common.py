@@ -349,21 +349,6 @@ def sample_split(cfg, rep):
     return order[:n_train], order[n_train:n_train+n_test]
 
 
-def training_directory(cfg):
-    value = cfg['run'].get('READOUT_TRAIN_DIR')
-    if value:
-        return Path(value).resolve()
-    rule = cfg['models'].get('LEARNING_RULE_MODEL', 'off')
-    output_sizes = cfg['network']['N_out']
-    output_sizes = [output_sizes] if np.isscalar(output_sizes) else output_sizes
-    sizes = '-'.join(str(n) for n in output_sizes)
-    return PROJECT_ROOT/'g_tactile_results'/'training_run'/f'readout_{rule}_out{sizes}'
-
-
-def test_directory(train_dir):
-    return Path(train_dir).resolve()/'test'
-
-
 def build_runtime(cfg, *, learning):
     start_scope(); prefs.codegen.target = 'numpy'
     defaultclock.dt = float(cfg['common']['dt_ms'])*1000*ms

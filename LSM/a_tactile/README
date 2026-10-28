@@ -4,6 +4,12 @@
 
 ## Files
 
+- `paths.py`
+  - 結果フォルダの階層と名前
+  - E→出力の結合確率・gain、学習則名、パラメータ組み合わせによる保存先
+  - 学習、テスト、実験実行、STDP時定数スイープで共通利用
+  - フォルダ名にはwmin・wmaxを含めず、STDPではA_plus・A_minusも含めない
+
 - `experiment_sets.py`
   - 使用する素材
   - センサー数

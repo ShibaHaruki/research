@@ -11,10 +11,10 @@ LEARNING_RULE_SPACE = {
     "STDP_default": {
         "tau_plus":  [8, 11.7, 15],
         "tau_minus": [10, 14.0, 18],
-        "A_plus":    [3e-4, 7e-4, 1e-3],
-        "A_minus":   [-3e-4, -6e-4, -1e-3],
+        "A_plus":    [1.00e-7],
+        "A_minus":   [-1.05e-7],
         "wmin":      [0.0],
-        "wmax":      [1.0],
+        "wmax":      [10.0],
     },
 
     "T_STDP_default": {
@@ -22,15 +22,15 @@ LEARNING_RULE_SPACE = {
         "tau_plus2":  [10, 15, 20],
         "tau_minus1": [10, 14.0, 18],
         "tau_minus2": [10, 15, 20],
-        "A2_plus":    [3e-4, 7e-4, 1e-3],
+        "A2_plus":    [1.00e-7],
         "A3_plus":    [1e-8, 5e-8, 1e-7],
 
         # T-STDPの抑圧項は正の値を更新式内で引く。
-        "A2_minus":   [3e-4, 6e-4, 1e-3],
+        "A2_minus":   [1.05e-7],
         "A3_minus":   [1e-8, 5e-8, 1e-7],
 
         "wmin":       [0.0],
-        "wmax":       [1.0],
+        "wmax":       [10.0],
     },
 
     "SRDP_default": {
@@ -38,12 +38,12 @@ LEARNING_RULE_SPACE = {
         "tau_minus": [10, 14.0, 18],
         "tau_pre":   [10, 15, 20],
         "tau_post":  [10, 15, 20],
-        "A_plus":    [3e-4, 7e-4, 1e-3],
-        "A_minus":   [3e-4, 6e-4, 1e-3],
+        "A_plus":    [1.00e-7],
+        "A_minus":   [1.05e-7],
         "A_pre":     [1e-5, 5e-5, 1e-4],
         "A_post":    [1e-5, 5e-5, 1e-4],
         "wmin":      [0.0],
-        "wmax":      [1.0],
+        "wmax":      [10.0],
     },
 
     "BCPNN_default": {
@@ -54,6 +54,6 @@ LEARNING_RULE_SPACE = {
         "bcpnn_gain":     [0.01, 0.05, 0.1],
         "bcpnn_w_offset": [0.0],
         "wmin":           [0.0],
-        "wmax":           [1.0],
+        "wmax":           [10.0],
     },
 }

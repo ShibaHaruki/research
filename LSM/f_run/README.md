@@ -32,7 +32,7 @@
 差を「リキッドEの発火率 − 出力層の発火率」とし、正なら出力gainを増やし、負なら減らします。
 調整幅を半分ずつ狭め、0.0001刻みの評価済み候補から、全試行の平均差の絶対値が最も小さいgainを採用します。
 同じgainを全試行に使うため、試行ごとに完全一致することを要求する条件ではありません。
-E→出力の結合確率は11%（出力40個すべてが1本以上の入力を持つ確率は約99.64%）、I→出力なし、学習無効、試行ごとに状態を初期化します。
+E80個→出力40個は全結合（100%、各出力80入力、総結合数3,200本）、I→出力なし、学習無効、試行ごとに状態を初期化します。
 
 ```powershell
 .\.mlflow-venv\Scripts\python.exe .\f_run\run_calibration.py output --liquid-dir .\g_tactile_results\calibration --out-dir .\g_tactile_results\sequential_output_rate_match_new
@@ -47,3 +47,18 @@ E→出力の結合確率は11%（出力40個すべてが1本以上の入力を�
 `selected_parameters.json` の出力gainと `config_snapshot.json` が校正用設定です。通常のFIXED設定は自動変更しません。
 
 校正用の数値計算は `run_calibration.py` 内のNumPy処理で行います。別の高速モジュールやビルド操作は不要です。
+
+## SVDに基づく120出力の実験
+
+`run_svd_output120.py` は保存済み校正結果を使う独立した実験です。通常のFIXEDの出力数40を変更せず、PC1〜PC13の60パターンを正負2枝ずつの120出力へ写します。
+
+```powershell
+python f_run/run_svd_output120.py prepare
+python f_run/run_svd_output120.py run --resume
+```
+
+E80個→出力120個を全結合とし、結合gainはmax(a,0)/max(-a,0)、共通倍率は1です。ゼロgainの接続はシミュレーション上の入力を作りません。`--gain-scale` を変える場合は別の `--out-dir` を指定してください。PCA/SVDの学習データ、結合gain、全状態、各素材sid203のdebug、分類結果を `g_tactile_results/svd_signed_output120` へ保存します。図・表の表示は `h_analysis/svd_signed_output120.ipynb` を使います。既存の校正データは上書きしません。
+
+### SVD120出力の平均発火率合わせ
+
+`python f_run/run_svd_output120_rate_match.py` で、SVD由来の相対gainを保った共通倍率を調整します。目標は学習1,808試行におけるリキッドE80個の平均発火率で、出力側は無活動枝も含む全120個の平均です。評価784試行は倍率の選択に使いません。倍率1の結果を残し、調整後の全素材状態・debug・分類結果は `g_tactile_results/svd_signed_output120_rate_matched` に保存します。許容差の既定値は1 Hz、倍率の刻みは0.0001です。

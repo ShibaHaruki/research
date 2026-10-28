@@ -3,7 +3,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import numpy as np
-from scipy.linalg import svd
+try:
+    from scipy.linalg import svd
+except ModuleNotFoundError as error:
+    if error.name not in ('scipy', 'scipy.linalg'):
+        raise
+
+    def svd(a, *, full_matrices=True, check_finite=True):
+        """SciPyがない場合も同じ分類式をNumPyで使用できるようにする。"""
+        return np.linalg.svd(a, full_matrices=full_matrices)
 
 
 @dataclass(frozen=True)

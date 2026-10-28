@@ -10,10 +10,10 @@ CFG_LEARNING_RULE_MODELS = {
     "STDP": {
         "tau_plus": 11.7,
         "tau_minus": 14.0,
-        "A_plus": 0.0007,
-        "A_minus": -0.0006,
+        "A_plus": 1.00e-7,
+        "A_minus": -1.05e-7,
         "wmin": 0.0,
-        "wmax": 1.0,
+        "wmax": 10.0,
     },
 
     "T_STDP": {
@@ -21,12 +21,12 @@ CFG_LEARNING_RULE_MODELS = {
         "tau_plus2": 15.0,
         "tau_minus1": 14.0,
         "tau_minus2": 15.0,
-        "A2_plus": 0.0007,
+        "A2_plus": 1.00e-7,
         "A3_plus": 0.00000005,
-        "A2_minus": 0.0006,
+        "A2_minus": 1.05e-7,
         "A3_minus": 0.00000005,
         "wmin": 0.0,
-        "wmax": 1.0,
+        "wmax": 10.0,
     },
 
     "SRDP": {
@@ -34,12 +34,12 @@ CFG_LEARNING_RULE_MODELS = {
         "tau_minus": 14.0,
         "tau_pre": 15.0,
         "tau_post": 15.0,
-        "A_plus": 0.0007,
-        "A_minus": 0.0006, # SRDP式では正の抑圧係数を引く
+        "A_plus": 1.00e-7,
+        "A_minus": 1.05e-7, # SRDP式では正の抑圧係数を引く
         "A_pre": 0.00005,
         "A_post": 0.00005,
         "wmin": 0.0,
-        "wmax": 1.0,
+        "wmax": 10.0,
     },
 
     "BCPNN": {
@@ -52,6 +52,6 @@ CFG_LEARNING_RULE_MODELS = {
         "bcpnn_gain": 0.05,
         "bcpnn_w_offset": 0.0,
         "wmin": 0.0,
-        "wmax": 1.0,
+        "wmax": 10.0,
     },
 }

@@ -11,7 +11,22 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from scipy.linalg import eigh, svd
+try:
+    from scipy.linalg import eigh, svd
+except ModuleNotFoundError as error:
+    if error.name not in ('scipy', 'scipy.linalg'):
+        raise
+
+    def eigh(a, *, subset_by_index=None, check_finite=True):
+        """SciPyがない環境ではNumPyで同じ固有値問題を解く。"""
+        values, vectors = np.linalg.eigh(a)
+        if subset_by_index is not None:
+            start, stop = subset_by_index
+            values, vectors = values[start:stop+1], vectors[:, start:stop+1]
+        return values, vectors
+
+    def svd(a, *, full_matrices=True, check_finite=True):
+        return np.linalg.svd(a, full_matrices=full_matrices)
 
 
 @dataclass(frozen=True)

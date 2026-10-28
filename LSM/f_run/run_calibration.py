@@ -199,12 +199,14 @@ def weights(ref, gains):
     return wi, np.ascontiguousarray(wr)
 
 
-def _simulate_states(inputs, wi, wr, wo=None, gain=0.):
+def _simulate_states(inputs, wi, wr, wo=None, gain=0., *, trace_callback=None):
     """NumPyで複数試行をまとめて計算する。各試行は初期状態から開始。
 
     Eulerの更新順、RI/SIの加算順、発火元番号順のシナプス加算を維持する。
     ニューロンの式はBrian2による代表試行の検証と照合する。
     """
+    if trace_callback is not None and not callable(trace_callback):
+        raise ValueError('trace_callback must be callable or None')
     x=np.asarray(inputs,dtype=np.float64)
     wi=np.asarray(wi,dtype=np.float64);wr=np.asarray(wr,dtype=np.float64)
     wo=np.zeros((100,0)) if wo is None else np.asarray(wo,dtype=np.float64)
@@ -262,6 +264,9 @@ def _simulate_states(inputs, wi, wr, wo=None, gain=0.):
             offsets=np.cumsum(sizes)-sizes
             edges=np.repeat(starts,sizes)+np.arange(number)-np.repeat(offsets,sizes)
             np.add.at(h,(np.repeat(rows,sizes),posts[edges]),increments[edges])
+        if trace_callback is not None:
+            # 引数は参照渡し。記録側は必要な試行だけコピーし、状態を書き換えない。
+            trace_callback(t, fired, out_fired if outputs else None, v, ov)
     return bins,peaks,liquid_bins
 
 
@@ -623,7 +628,7 @@ def plan():
                    '4: EE p=.11', '5: EE gain; EI/IE/II gains zero; E80 in each trial',
                    '6: EI p=.10', '7: EI gain; IE/II gains zero; I20 in each trial',
                    '8: IE p=.37', '9: IE gain; every E/I neuron across all 324 trials; minimize E rate',
-                   '10: output EE p=.11; match liquid E/output mean firing rates across 8 x 324 trials; no learning',
+                   '10: output EE p=1.0 (fully connected); match liquid E/output mean firing rates across 8 x 324 trials; no learning',
                    '11: record 8 x 324 fresh states (20 time bins x 100 neurons); one debug trial per material'],
          'minimum_scope': 'fixed topology and screened gains; recurrent response is not assumed monotonic',
          'note': 'Japanese_paper is the selected calibration material; no claim it is both smallest and largest input.'},

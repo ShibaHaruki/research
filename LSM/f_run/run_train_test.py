@@ -7,7 +7,8 @@ ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
 from f_run.run_training import run_training
 from f_run.run_test import run_test
-from f_run.run_common import add_training_arguments, cfg_from_args, training_directory
+from f_run.run_common import add_training_arguments, cfg_from_args
+from a_tactile.paths import training_directory
 
 
 def run_train_test(rep: int,cfg: dict) -> str:

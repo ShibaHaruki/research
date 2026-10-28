@@ -15,7 +15,7 @@ CFG_RUN = {
     "TACTILE_DATA_DIR_NAME": "tactile_data",
 
     "SAMPLE_SEQ_DIR": "sample_seq",
-    "TRAINING_RESULT_DIR": "training_run",
+    "TRAINING_RESULT_DIR": "readout_run",
     "TEST_RESULT_DIR": "test_run",
     "SPIKE_COUNT_DIR": "spike_counts",
     "DEBUG_DIR": "debug",

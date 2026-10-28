@@ -16,6 +16,8 @@ from f_run.run_common import build_cfg, build_network_cfg
 from d_tools.experiments import (apply_overrides, expand_experiment, safe_stem, jsonable,
     now_text, append_manifest_row, write_experiment_trial_json)
 from f_run.run_common import validate_cfg, repetition_numbers
+from a_tactile.paths import (RESULTS_ROOT, training_directory, test_directory,
+    experiment_directory, experiment_manifest_directory)
 
 ROOT = Path(__file__).resolve().parent
 TARGETS = {'training','liquid','test','train_test','train_test_eval','classify'}
@@ -46,7 +48,6 @@ def normalized_target(value):
 
 
 def execute_target(target,cfg):
-    from f_run.run_common import training_directory, test_directory
     if target=='liquid':
         from f_run.run_liquid import run_liquid
         return run_liquid(cfg)
@@ -79,8 +80,8 @@ def run_experiment(experiment, *, out_dir=None,target=None,trial_id=None,dry_run
     if not trials: raise ValueError('No experiment trials selected')
     ids=[trial['id'] for trial in trials]
     if len(set(ids))!=len(ids): raise ValueError('Experiment trial IDs must be unique')
-    root=Path(out_dir).resolve() if out_dir is not None else ROOT/'g_tactile_results/experiments'/safe_stem(experiment['name'])
-    manifest=root/'experiment_manifest.csv';results=[]
+    results_root=Path(out_dir).resolve() if out_dir is not None else RESULTS_ROOT
+    results=[]
     # 全trialのキーと基本設定を先に検査し、後半の誤記で前半だけ実行されるのを防ぐ。
     prepared=[]
     for trial in trials:
@@ -88,12 +89,15 @@ def run_experiment(experiment, *, out_dir=None,target=None,trial_id=None,dry_run
         cfg=apply_overrides(build_cfg(),trial['overrides'])
         build_network_cfg(cfg)
         if current_target not in ('liquid','test','classify'):validate_cfg(cfg)
-        case=root/safe_stem(trial['id'])
-        case.relative_to(root)
+        case=experiment_directory(cfg,experiment['name'],trial['id'],
+            target=current_target,results_root=results_root)
+        case.relative_to(results_root)
         cfg['run']['READOUT_TRAIN_DIR']=str(case/'training')
         cfg['run']['LIQUID_OUTPUT_DIR']=str(case/'liquid')
         prepared.append((trial,current_target,cfg,case))
     for trial,current_target,cfg,case in prepared:
+        manifest=experiment_manifest_directory(cfg,experiment['name'],
+            target=current_target,results_root=results_root)/'experiment_manifest.csv'
         payload={'experiment_name':experiment['name'],'trial_id':trial['id'],'target':current_target,
                  'memo':trial.get('memo',''),'overrides':trial['overrides'],
                  'training_directory':str(case/'training'),'liquid_directory':str(case/'liquid')}
