@@ -26,13 +26,15 @@ SPACE_NETWORK_TUPLEPATH = {
         ("scale", "I", [0.0]),
     ]
 }
-SPACE_NETWORK_TUPLEPATH.update({
-    ("p_liq_to_out_pairs", 0, "EE"): [0.05, 0.10, 0.20, 0.8, 1.0],
-    ("p_liq_to_out_pairs", 0, "EI"): [0.0],
-    ("p_liq_to_out_pairs", 0, "IE"): [0.0],
-    ("p_liq_to_out_pairs", 0, "II"): [0.0],
-    ("gain_liq_to_out_pairs", 0, "EE"): [0.2963, 0.5, 0.6, 1.0, 2.0],
-    ("gain_liq_to_out_pairs", 0, "EI"): [0.0],
-    ("gain_liq_to_out_pairs", 0, "IE"): [0.0],
-    ("gain_liq_to_out_pairs", 0, "II"): [0.0],
-})
+SPACE_NETWORK_TUPLEPATH.update(
+    {
+        ("p_liq_to_out_pairs", 0, "EE"): [0.05, 0.10, 0.20, 0.8, 1.0],
+        ("p_liq_to_out_pairs", 0, "EI"): [0.0],
+        ("p_liq_to_out_pairs", 0, "IE"): [0.0],
+        ("p_liq_to_out_pairs", 0, "II"): [0.0],
+        ("gain_liq_to_out_pairs", 0, "EE"): [0.2706, 0.5, 0.6, 1.0, 2.0],
+        ("gain_liq_to_out_pairs", 0, "EI"): [0.0],
+        ("gain_liq_to_out_pairs", 0, "IE"): [0.0],
+        ("gain_liq_to_out_pairs", 0, "II"): [0.0],
+    }
+)

@@ -4,9 +4,15 @@ import numpy as np
 
 _EPS = 1e-12
 
+
 # 入力層からLiquid層への重みを初期化
-def init_in_to_liq(rng: np.random.Generator,n_syn: int,scale: float,N_post: int,) -> np.ndarray:
-    #　半正規分布
+def init_in_to_liq(
+    rng: np.random.Generator,
+    n_syn: int,
+    scale: float,
+    N_post: int,
+) -> np.ndarray:
+    # 　半正規分布
     n_syn = int(n_syn)
     N_post = int(N_post)
 
@@ -14,9 +20,15 @@ def init_in_to_liq(rng: np.random.Generator,n_syn: int,scale: float,N_post: int,
     kbar = max(float(n_syn) / float(max(N_post, 1)), _EPS)
     return np.abs(x) * float(scale) / np.sqrt(kbar)
 
-#Liquid層内のシナプス重みを初期化
-def init_liq_intra(rng: np.random.Generator,n_syn: int,gain: float,N_post: int,) -> np.ndarray:
-    #　半正規分布
+
+# Liquid層内のシナプス重みを初期化
+def init_liq_intra(
+    rng: np.random.Generator,
+    n_syn: int,
+    gain: float,
+    N_post: int,
+) -> np.ndarray:
+    # 　半正規分布
     n_syn = int(n_syn)
     N_post = int(N_post)
 

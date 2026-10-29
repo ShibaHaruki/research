@@ -3,43 +3,41 @@
 from __future__ import annotations
 import numpy as np
 
-#差分幅
+# 差分幅
 DERIVATIVE_WIDTH = 1
 
-COMPONENT_NAMES = ("RI", "SI", "USI")
 
-#指数平滑フィルタの時定数
+# 指数平滑フィルタの時定数
 EXP_FILTER_tau = 6.0 * 1e-3
 
-#入力フィルタの時定数
+# 入力フィルタの時定数
 RI_tau = 0.9 * 1e-3
 SI_tau = 80 * 1e-3
 USI_tau = 1744.6 * 1e-3
 
-#入力フィルタのgain
+# 入力フィルタのgain
 RI_gain = 0.74
 SI_gain = 0.24
 USI_gain = 0.07
 
-#センサー間のスケールの違いを補正するためのゲイン
+# センサー間のスケールの違いを補正するためのゲイン
 SENSOR_GAIN = {
     0: 1 / 1.62,
     1: 1 / 2.91,
     2: 1 / 2.27,
 }
 
-#入力フィルタ間のスケールの違いを補正するためのゲイン
+# 入力フィルタ間のスケールの違いを補正するためのゲイン
 FILTER_GAIN = {
-    
     "RI": 1 / 9.16,
     "SI": 1 / 553.91,
-
     "USI": 1 / 532.04,
     "merkel": 0.008,
     "meissner": 0.0876,
 }
 
-#指数平滑フィルタ
+
+# 指数平滑フィルタ
 def _exp_filter(data, dt):
     filtered = np.zeros_like(data, dtype=float)
     if len(data) == 0:
@@ -51,7 +49,8 @@ def _exp_filter(data, dt):
         filtered[i] = filtered[i - 1] + alpha * (data[i] - filtered[i - 1])
     return filtered
 
-#差分→絶対値
+
+# 差分→絶対値
 def _abs_derivative(data, t, i, width=DERIVATIVE_WIDTH):
     j = max(0, i - int(width))
     if j == i:
@@ -74,44 +73,42 @@ def _calc_components(data, t, dt):
 
     return components
 
-#RIフィルタ
+
+# RIフィルタ
 def _RI_step(components, i, dF_dt, dt):
     return components[0, i - 1] + dF_dt + (-components[0, i - 1] * dt / RI_tau)
 
-#SIフィルタ
-def _SI_step(components, i, dF_dt, dt):
-    return components[1, i - 1] +  dF_dt + (-(components[1, i - 1] - 0.24 * 0.13) * dt / SI_tau)
 
-#USIフィルタ
+# SIフィルタ
+def _SI_step(components, i, dF_dt, dt):
+    return components[1, i - 1] + dF_dt + (-(components[1, i - 1] - 0.24 * 0.13) * dt / SI_tau)
+
+
+# USIフィルタ
 def _USI_step(components, i, dF_dt, dt):
     return components[2, i - 1] + dF_dt + (-components[2, i - 1] * dt / USI_tau)
 
-#meissnerフィルタ
-def calc_meissner_components(data, t, dt):
-    components = _calc_components(data, t, dt)
-    return {name: components[index, :] for index, name in enumerate(COMPONENT_NAMES)}
-
-#merkelフィルタ
-def calc_merkel_components(data, t, dt):
-    components = _calc_components(data, t, dt)
-    return {name: components[index, :] for index, name in enumerate(COMPONENT_NAMES)}
-
 
 def RI(data, t, dt):
+    """急速順応成分RIの時系列を返す。"""
     return _calc_components(data, t, dt)[0, :]
 
 
 def SI(data, t, dt):
+    """緩徐順応成分SIの時系列を返す。"""
     return _calc_components(data, t, dt)[1, :]
 
 
 def USI(data, t, dt):
+    """超緩徐順応成分USIの時系列を返す。"""
     return _calc_components(data, t, dt)[2, :]
 
 
 def calc_meissner(data, t, dt):
+    """RI成分に所定のgainを掛けたMeissner応答を返す。"""
     return RI_gain * RI(data, t, dt)
 
 
 def calc_merkel(data, t, dt):
+    """RI・SI・USIの各成分を所定のgainで足したMerkel応答を返す。"""
     return RI_gain * RI(data, t, dt) + SI_gain * SI(data, t, dt) + USI_gain * USI(data, t, dt)

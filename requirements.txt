@@ -8,3 +8,19 @@ scipy>=1.10
 cma>=3.3
 mlflow>=2.0
 cmake>=3.26
+
+# LSMの分類・並列計算制御
+scikit-learn>=1.9.1
+threadpoolctl>=3.7.0
+
+# h_analysisのノートブック実行環境
+IPython
+ipykernel
+jupyterlab
+
+# Brian2でCythonによるコード生成を使う場合のビルド依存関係
+Cython>=3.3.0
+setuptools>=84.2.1
+
+# Excel出力は別途Node.jsと@oai/artifact-toolを使用する（pipの管理対象外）。
+# Cythonのコンパイルには別途Visual C++のビルド環境が必要。

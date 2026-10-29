@@ -1,6 +1,6 @@
 """入力フィルタ名と実際の計算関数を対応付ける設定。"""
 
-from a_tactile.input_filters import (
+from a_experiment.input_filters import (
     FILTER_GAIN,
     SENSOR_GAIN,
     RI,
@@ -9,7 +9,6 @@ from a_tactile.input_filters import (
     calc_meissner,
     calc_merkel,
 )
-
 
 FILTER_FUNCS = {
     "RI": RI,
@@ -32,3 +31,6 @@ OPT_FILTER_GAIN = {
     "merkel": 1.0,
     "meissner": 1.0,
 }
+
+# この設定モジュールから共通設定へ公開する入力フィルタの設定値。
+__all__ = ["FILTER_FUNCS", "INPUT_FILTER_MAP", "OPT_FILTER_GAIN", "SENSOR_GAIN", "FILTER_GAIN"]

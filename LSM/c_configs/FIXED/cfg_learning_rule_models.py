@@ -3,10 +3,7 @@
 # FIXED/cfg_learning_rule_models.py
 
 CFG_LEARNING_RULE_MODELS = {
-    "off": {
-        
-    },
-
+    "off": {},
     "STDP": {
         "tau_plus": 11.7,
         "tau_minus": 14.0,
@@ -15,7 +12,6 @@ CFG_LEARNING_RULE_MODELS = {
         "wmin": 0.0,
         "wmax": 10.0,
     },
-
     "T_STDP": {
         "tau_plus1": 11.7,
         "tau_plus2": 15.0,
@@ -28,20 +24,18 @@ CFG_LEARNING_RULE_MODELS = {
         "wmin": 0.0,
         "wmax": 10.0,
     },
-
     "SRDP": {
         "tau_plus": 11.7,
         "tau_minus": 14.0,
         "tau_pre": 15.0,
         "tau_post": 15.0,
         "A_plus": 1.00e-7,
-        "A_minus": 1.05e-7, # SRDP式では正の抑圧係数を引く
+        "A_minus": 1.05e-7,  # SRDP式では正の抑圧係数を引く
         "A_pre": 0.00005,
         "A_post": 0.00005,
         "wmin": 0.0,
         "wmax": 10.0,
     },
-
     "BCPNN": {
         # pre/post の活動トレースから同時発火確率 Pij と周辺確率 Pi/Pj を推定し、
         # log(Pij / (Pi*Pj)) 型で出力層への重みを更新する。

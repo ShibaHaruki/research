@@ -1,29 +1,10 @@
-"""採用したgain179条件のネットワーク設定。
+"""学習則に共通の入力・Liquidネットワーク設定。出力層構成は各学習則の設定で追加する。"""
 
-入力179、EE 0.150、EI 0.206、IE 0.01390625、II 0。
-3センサーそれぞれのRI/SIをEへ接続し、Iへの直接入力は使わない。
-"""
-
+# 入力gain179、E80個・I20個、EE/EI/IE/IIの採用値を共通管理する。
 CFG_NETWORK = {
-    # リキッド層：E80個、I20個。
     "N_liq": [100],
     "r_inh_liq": 0.2,
-
-    # 出力層：80個・全興奮性、固定重みから開始する。
-    "output_enabled": True,
-    "N_out": [80],
-    # E80個→出力80個を確率11%で接続。各出力の平均入力数は8.8本、総結合数の期待値は704本。
-    # I→出力は結合を作らない。
-    "p_liq_to_out_pairs": [{"EE": 0.11, "EI": 0.0, "IE": 0.0, "II": 0.0}],
-    # 出力gainは現行値。結合確率を変更した条件で発火率を合わせる場合は再校正する。
-    "gain_liq_to_out_pairs": [{"EE": 0.2963, "EI": 0.0, "IE": 0.0, "II": 0.0}],
-
-    # 入力条件はIN_ROUTEへ明示するため、共有設定による上書きは無効。
     "SHARED_IN_ROUTE": {"enabled": False, "filters": {}},
-
-    # 3センサー × RI/SI の計6経路。
-    # 各経路→Eは5%、gain179。各経路→Iは確率・gainともに0。
-    # 結合先と重みはBASE_SEEDで固定し、従来の検証条件を再現する。
     "IN_ROUTE": {
         (sensor, filter_name): {
             "layers": {
@@ -36,19 +17,6 @@ CFG_NETWORK = {
         for sensor in range(3)
         for filter_name in ("RI", "SI")
     },
-
-    # 背景ポアソン入力は使わない。
-    "poisson_input": {
-        "enabled": False,
-        "N_ratio": None,
-        "N": 100,
-        "rate_hz": 5.0,
-        "current": "exc",
-        "p": {"E": 0.1, "I": 0.1},
-        "scale": {"E": 0.2, "I": 0.2},
-    },
-
-    # リキッド層内の結合。II確率は残すが、gain0でIIの作用を無効にする。
     "liq_intra_connection": "random",
     "p_liq_intra_pairs": {"EE": 0.11, "EI": 0.10, "IE": 0.37, "II": 0.10},
     "liq_intra_gain_pairs": {"EE": 0.150, "EI": 0.206, "IE": 0.01390625, "II": 0.0},

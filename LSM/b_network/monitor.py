@@ -7,9 +7,12 @@ from __future__ import annotations
 import numpy as np
 from brian2 import SpikeMonitor, StateMonitor, ms
 
+
 # 膜電位を記録するニューロンの番号を、重複なしの昇順リストで返す
-def select_record_indices(group, n_record: int, rng: np.random.Generator | None = None) -> list[int]:
-    
+def select_record_indices(
+    group, n_record: int, rng: np.random.Generator | None = None
+) -> list[int]:
+
     n_neurons = len(group)
     # 記録数を0〜層全体のニューロン数に制限する。E/Iから合わせて選ぶ。
     n_record = min(max(int(n_record), 0), n_neurons)
@@ -20,6 +23,46 @@ def select_record_indices(group, n_record: int, rng: np.random.Generator | None 
         return list(range(n_record))
     # replace=Falseで重複を防ぎ、記録と番号を対応させやすいように並べる。
     return sorted(int(idx) for idx in rng.choice(n_neurons, size=n_record, replace=False))
+
+
+def make_weight_trace_monitors(synapses, *, n_record=10, seed=1, prefix="W_trace"):
+    """実結合を選び、シミュレーションと同じ刻みで重みを記録する。選択の乱数は独立。"""
+    # 記録本数は0以上の整数。0なら重みの詳細記録だけを無効にできる。
+    if isinstance(n_record, bool) or int(n_record) != n_record or n_record < 0:
+        raise ValueError("n_record must be a nonnegative integer")
+    n_record = int(n_record)
+    blocks = [syn for syn in synapses if "w" in syn.variables and len(syn)]
+    sizes = np.asarray([len(syn) for syn in blocks], dtype=int)
+    total = int(sizes.sum())
+    chosen = np.sort(np.random.default_rng(seed).choice(total, min(n_record, total), replace=False))
+    monitors = []
+    connections = []
+    offset = 0
+    for number, syn in enumerate(blocks):
+        ids = chosen[(chosen >= offset) & (chosen < offset + len(syn))] - offset
+        if len(ids):
+            monitor = StateMonitor(
+                syn,
+                "w",
+                record=ids,
+                clock=syn.clock,
+                when="start",
+                order=-1,
+                name=f"{prefix}_{number}",
+            )
+            monitor.active = False
+            monitors.append(monitor)
+            for index in ids:
+                connections.append(
+                    {
+                        "synapse_name": syn.name,
+                        "synapse_index": int(index),
+                        "pre_id": int(syn.i[index]),
+                        "post_id": int(syn.j[index]),
+                    }
+                )
+        offset += len(syn)
+    return monitors, connections
 
 
 # 別々のE/I発火モニタを、一つの層全体の発火記録として扱う
@@ -67,6 +110,7 @@ class _CombinedSpikeMonitor:
         """ニューロン数ではなく、E/Iを合わせた発火イベント数を返す。"""
         return len(self.exc.t) + len(self.inh.t)
 
+
 class _CombinedStateMonitor:
     """E/Iの膜電位記録を、Eを先・Iを後とするニューロン順でまとめる。"""
 
@@ -93,14 +137,13 @@ class _CombinedStateMonitor:
     def v(self):
         """膜電位を「記録対象ニューロン数×記録時刻数」の配列で返す。"""
         # axis=0はニューロン方向。時間方向には連結しない。
-        return np.concatenate(
-            [np.asarray(self.exc.v), np.asarray(self.inh.v)], axis=0
-        )
+        return np.concatenate([np.asarray(self.exc.v), np.asarray(self.inh.v)], axis=0)
 
     def resize(self, n):
         """E/I両方の記録バッファの時間点数を変更する。0なら記録を空にする。"""
         self.exc.resize(n)
         self.inh.resize(n)
+
 
 def make_liquid_monitors(G_liq, rng: np.random.Generator, run_cfg: dict) -> dict:
     """各リキッド層のモニタと記録対象番号を辞書で返す。
@@ -110,14 +153,12 @@ def make_liquid_monitors(G_liq, rng: np.random.Generator, run_cfg: dict) -> dict
     run_cfg：記録するニューロン数と記録間隔（ms）などの設定。
     返り値の各リストは層順。objectsだけはNetwork.add()用の生モニタ一覧。
     """
-    # 各層で詳しく見るニューロンの数と、その膜電位の記録間隔。
+    # debug用の膜電位は、対象ニューロンと同じ時計で毎ステップ記録する。
     n_voltage = int(run_cfg.get("DEBUG_VOLTAGE_NEURONS", 10))
-    voltage_dt_ms = float(run_cfg.get("DEBUG_VOLTAGE_DT_MS", 1.0))
 
     M_liq_debug = []  # 全ニューロンの発火イベントをE/I統合で扱う。
     V_liq_indices = []  # 一部の膜電位記録に選んだ、層全体での番号。
     V_liq = []  # 選択したニューロンの膜電位モニタ。
-    internal_state_dt_ms = float(run_cfg.get("INTERNAL_STATE_DT_MS", 1.0))
     V_liq_internal = []  # 全ニューロンの膜電位モニタ。
     monitor_objects = []  # Brian2のNetworkへ登録する、個々のモニタ。
     for layer_index, layer in enumerate(G_liq):
@@ -136,26 +177,40 @@ def make_liquid_monitors(G_liq, rng: np.random.Generator, run_cfg: dict) -> dict
         # 選択したニューロンは閾値判定の直前に記録する。
         # order=-1により、発火後のリセットより前の立ち上がりを確認できる。
         v_exc = StateMonitor(
-            layer.exc, "v", record=exc_indices, dt=voltage_dt_ms * ms,
-            when="thresholds", order=-1,
+            layer.exc,
+            "v",
+            record=exc_indices,
+            clock=layer.exc.clock,
+            when="thresholds",
+            order=-1,
             name=f"V_liq_E_L{layer_index + 1}",
         )
         v_inh = StateMonitor(
-            layer.inh, "v", record=inh_indices, dt=voltage_dt_ms * ms,
-            when="thresholds", order=-1,
+            layer.inh,
+            "v",
+            record=inh_indices,
+            clock=layer.inh.clock,
+            when="thresholds",
+            order=-1,
             name=f"V_liq_I_L{layer_index + 1}",
         )
         V_liq.append(_CombinedStateMonitor(v_exc, v_inh))
         monitor_objects.extend([v_exc, v_inh])
 
         # record=Trueで各グループの全員を記録する。
-        # 全ニューロンの膜電位は、既定のstart段階で記録する。
+        # 全ニューロンの膜電位は、対象ニューロンと同じ時間刻みでstart段階に記録する。
         v_internal_exc = StateMonitor(
-            layer.exc, "v", record=True, dt=internal_state_dt_ms * ms,
+            layer.exc,
+            "v",
+            record=True,
+            clock=layer.exc.clock,
             name=f"V_liq_internal_E_L{layer_index + 1}",
         )
         v_internal_inh = StateMonitor(
-            layer.inh, "v", record=True, dt=internal_state_dt_ms * ms,
+            layer.inh,
+            "v",
+            record=True,
+            clock=layer.inh.clock,
             name=f"V_liq_internal_I_L{layer_index + 1}",
         )
         V_liq_internal.append(_CombinedStateMonitor(v_internal_exc, v_internal_inh))
@@ -180,10 +235,18 @@ def make_output_monitors(G_out, rng: np.random.Generator, run_cfg: dict) -> dict
     for index, group in enumerate(G_out, 1):
         ids = select_record_indices(group, run_cfg.get("DEBUG_VOLTAGE_NEURONS", 10), rng)
         spike = SpikeMonitor(group, name=f"M_out_L{index}")
-        voltage = StateMonitor(group, "v", record=ids,
-            dt=float(run_cfg.get("DEBUG_VOLTAGE_DT_MS", .1))*ms,
-            when="thresholds", order=-1, name=f"V_out_L{index}")
+        voltage = StateMonitor(
+            group,
+            "v",
+            record=ids,
+            clock=group.clock,
+            when="thresholds",
+            order=-1,
+            name=f"V_out_L{index}",
+        )
         spike.active = voltage.active = False
-        spikes.append(spike); voltages.append(voltage); indices.append(np.asarray(ids, int))
+        spikes.append(spike)
+        voltages.append(voltage)
+        indices.append(np.asarray(ids, int))
         objects.extend([spike, voltage])
     return {"M_out": spikes, "V_out": voltages, "V_out_indices": indices, "objects": objects}

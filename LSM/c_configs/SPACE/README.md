@@ -1,14 +1,16 @@
 # パラメータ候補（SPACE）
 
-通常の実行値は `../FIXED/` です。SPACEは候補の定義であり、置いただけでは通常実行に反映されません。探索処理を追加するときは、候補を選んで設定のコピーへ適用します。この追加では探索エンジンやCMA-ESは復元していません。
+通常の実行値は `../FIXED/` です。出力層ごとのSTDP時定数5〜250 msは`FIXED/cfg_network_stdp.py`で定義し、`cfg_learning_rule_models.py`はその候補を参照します。冒頭のseed数・epochは`--sweep`で直接読み込みます。それ以外の候補定義は、置いただけでは通常実行に反映されません。
 
 |ファイル|内容|
 |---|---|
 |`cfg_base.py`|構造・モデル候補と対応表|
 |`cfg_network.py`|結合確率・gain・入力経路の候補|
-|`cfg_learning_rule_models.py`|STDP・T-STDP・SRDP・BCPNNの候補|
+|`cfg_learning_rule_models.py`|共有LiquidのSTDP sweep設定と、STDP・T-STDP・SRDP・BCPNNの一般的な候補|
 |`cfg_neuron_models.py`|LIFパラメータ候補|
 |`cfg_synapse_models.py`|シナプス時定数候補|
+
+共有Liquidの`--sweep`では、構造・学習則・層別パラメータ・結合確率・gainを`FIXED/cfg_network_stdp.py`から取り出します。A・重み上下限など層別指定を省略した値は`FIXED/cfg_learning_rule_models.py`、学習・テスト試行数と素材は`a_experiment/experiment_sets.py`の共通値を使用します。
 
 `SPACE_NETWORK`のキーはnetwork辞書へのドット区切りパス、`SPACE_NETWORK_TUPLEPATH`のキーは辞書・リストを順にたどるパスです。タプル内の `(sensor, filter_name)` はIN_ROUTE辞書の1つのキーです。
 

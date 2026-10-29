@@ -7,16 +7,20 @@ from numbers import Number
 from typing import Any
 
 import numpy as np
-from brian2 import Hz, Network, NeuronGroup, PoissonGroup, Synapses, TimedArray, ms
+from brian2 import Network, NeuronGroup, Synapses, TimedArray, ms
 
 from .models.connectivity_models import get_connection, layer_val
 from .models.model_utils import merge_namespace
 
-from .models.neuron_models import NEURON_MODELS #ニューロンモデル呼び出し
+from .models.neuron_models import NEURON_MODELS  # ニューロンモデル呼び出し
 from .models.learning_rule_models import LEARNING_RULES
-from .models.synapse_models import SYNAPSE_MODELS #シナプスモデル呼び出し
+from .models.synapse_models import SYNAPSE_MODELS  # シナプスモデル呼び出し
 
-from .weight_initialization import init_in_to_liq, init_liq_intra, init_liq_to_out #重みの初期化関数呼び出し
+from .weight_initialization import (
+    init_in_to_liq,
+    init_liq_intra,
+    init_liq_to_out,
+)  # 重みの初期化関数呼び出し
 
 from .monitor import make_liquid_monitors, make_output_monitors
 
@@ -27,6 +31,7 @@ PAIR_KEYS = ("EE", "EI", "IE", "II")
 def _layer_float(value: Any, layer_index: int) -> float:
     return float(layer_val(value, layer_index))
 
+
 # 設定された層サイズを整数リストで返す
 def _layer_sizes(cfg: dict, key: str) -> list[int]:
     sizes = cfg[key]
@@ -34,13 +39,16 @@ def _layer_sizes(cfg: dict, key: str) -> list[int]:
         return [int(sizes)]
     return [int(size) for size in sizes]
 
+
 def _synapse_post_equations(cfg: dict) -> str:
     synapse_model = SYNAPSE_MODELS[cfg["synapse_model"]]
     return synapse_model.get("post_eqs", synapse_model["eqs"])
 
+
 # 指定したLiquid層のEE・EI・IE・II設定値をまとめて取得する関数
 def _pair_values(pair_dict: dict[str, Any], layer_index: int) -> tuple[float, float, float, float]:
     return tuple(_layer_float(pair_dict[key], layer_index) for key in PAIR_KEYS)
+
 
 # 興奮性・抑制性の接続先ごとの結合確率や重みスケールを、設定辞書から読み取る関数
 def _read_post_ei_values(params: dict[str, Any], key: str) -> tuple[float, float]:
@@ -60,6 +68,7 @@ def _read_post_ei_values(params: dict[str, Any], key: str) -> tuple[float, float
         )
     return float(e_value), float(i_value)
 
+
 # シナプスモデルが必要とする外部パラメータを設定から読み出し、単位を付けてBrian2に渡す関数
 def _synapse_namespace(cfg: dict | None, syn_model: dict) -> dict[str, Any]:
     namespace = {}
@@ -78,14 +87,27 @@ def _synapse_namespace(cfg: dict | None, syn_model: dict) -> dict[str, Any]:
     return namespace
 
 
-#興奮性と抑制性の2つのNeuronGroupを、解析時に1つのLiquid層のように読み書きするための互換クラス
+# 興奮性と抑制性の2つのNeuronGroupを、解析時に1つのLiquid層のように読み書きするための互換クラス
 class LiquidLayer:
 
-    #興奮性・抑制性グループを結合して扱う属性
+    # 興奮性・抑制性グループを結合して扱う属性
     _array_names = {
-        "typ", "v", "v_thr", "v_reset", "tau_m", "t_ref",
-        "x", "y", "z", "I_merkel", "I_meissner", "I_RI", "I_SI",
-        "I_USI", "I_syn", "H_syn",
+        "typ",
+        "v",
+        "v_thr",
+        "v_reset",
+        "tau_m",
+        "t_ref",
+        "x",
+        "y",
+        "z",
+        "I_merkel",
+        "I_meissner",
+        "I_RI",
+        "I_SI",
+        "I_USI",
+        "I_syn",
+        "H_syn",
     }
 
     def __init__(self, exc: NeuronGroup, inh: NeuronGroup):
@@ -93,7 +115,7 @@ class LiquidLayer:
         object.__setattr__(self, "inh", inh)
 
     def __len__(self):
-        return len(self.exc) + len(self.inh) #興奮性と抑制性を合わせたLiquid層全体のニューロン数
+        return len(self.exc) + len(self.inh)  # 興奮性と抑制性を合わせたLiquid層全体のニューロン数
 
     def _split_value(self, value):
         n_exc = len(self.exc)
@@ -107,9 +129,7 @@ class LiquidLayer:
     def __getattr__(self, name):
         if name in self._array_names:
             if name == "H_syn":
-                return np.concatenate(
-                    [getattr(self.exc, name), getattr(self.inh, name)]
-                )
+                return np.concatenate([getattr(self.exc, name), getattr(self.inh, name)])
             return np.concatenate(
                 [np.asarray(getattr(self.exc, name)), np.asarray(getattr(self.inh, name))]
             )
@@ -127,16 +147,16 @@ class LiquidLayer:
             return
         object.__setattr__(self, name, value)
 
+
 # ニューロンを興奮性・抑制性に分類し、それぞれの膜時定数と不応期を設定する関数
 # 入力のNeuronGroupを作る関数。入力のTimedArrayも同時に作ることができる。
 def make_in_neuron_group(N_in=None, input_ta=None, cfg: dict | None = None, name="G_in"):
-   
     """
     Supported call styles:
     - make_in_neuron_group(N_in, input_ta) -> G_in
     - make_in_neuron_group(cfg) -> (G_in, input_ta)
     """
-   
+
     if isinstance(N_in, dict) and input_ta is None and cfg is None:
         cfg = N_in
         N_in = None
@@ -171,6 +191,7 @@ def make_in_neuron_group(N_in=None, input_ta=None, cfg: dict | None = None, name
         return G_in, input_ta
     return G_in
 
+
 # ニューロングループの作成
 def _create_spiking_group(N: int, eqs: str, neuron_model: dict, name: str) -> NeuronGroup:
     return NeuronGroup(
@@ -183,6 +204,7 @@ def _create_spiking_group(N: int, eqs: str, neuron_model: dict, name: str) -> Ne
         namespace=neuron_model.get("namespace", {}),
         name=name,
     )
+
 
 # ニューロン種別・時定数・膜電位・入力電流・位置などの初期値をまとめて設定する関数
 def _init_group_state(
@@ -203,10 +225,7 @@ def _init_group_state(
     group.tau_m = tau_m * ms
     group.t_ref = t_ref * ms
 
-    active_filters = {
-        str(name).split("__", 1)[0]
-        for name in cfg.get("USE_INPUT_FILTERS", [])
-    }
+    active_filters = {str(name).split("__", 1)[0] for name in cfg.get("USE_INPUT_FILTERS", [])}
     for filter_name in active_filters:
         current_name = f"I_{filter_name}"
         if hasattr(group, current_name):
@@ -232,18 +251,21 @@ def _init_group_state(
 
     neuron_model["set_shared"](group)
 
+
 # LSMのリキッド層を構成する興奮性ニューロン群と抑制性ニューロン群を作成し，初期化して、各層を LiquidLayer として返す関数
 def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
 
-    #E/Iニューロンモデルを取得する
+    # E/Iニューロンモデルを取得する
     neuron_model_e = NEURON_MODELS["LIF_E"]
     neuron_model_i = NEURON_MODELS["LIF_I"]
 
-    filters = list(dict.fromkeys(str(name).split("__", 1)[0] for name in cfg.get("USE_INPUT_FILTERS", [])))
+    filters = list(
+        dict.fromkeys(str(name).split("__", 1)[0] for name in cfg.get("USE_INPUT_FILTERS", []))
+    )
 
     if not filters:
         raise ValueError("At least one input filter must be enabled.")
-    
+
     input_sum = " + ".join(f"I_{filter_name}" for filter_name in filters)
     input_eqs = "\n".join(
         [*(f"I_{filter_name} : 1" for filter_name in filters), f"I_in = {input_sum} : 1"]
@@ -299,7 +321,15 @@ def make_liquid_neuron_groups(cfg: dict, rng, name_prefix="G_liq"):
     return groups
 
 
-def _make_synapses(pre,post,syn_model: dict,name: str,learning: dict | None = None,namespace: dict[str, Any] | None = None,cfg: dict | None = None,):
+def _make_synapses(
+    pre,
+    post,
+    syn_model: dict,
+    name: str,
+    learning: dict | None = None,
+    namespace: dict[str, Any] | None = None,
+    cfg: dict | None = None,
+):
 
     # namespaceをまとめる
     merged_namespace = merge_namespace(
@@ -316,8 +346,8 @@ def _make_synapses(pre,post,syn_model: dict,name: str,learning: dict | None = No
         model = syn_model["eqs"] + learning["eqs"]
         on_pre = syn_model["on_pre"] + learning["on_pre"]
         on_post = learning["on_post"]
-    
-    #Brian2へ渡す引数を作る
+
+    # Brian2へ渡す引数を作る
     kwargs = dict(model=model, on_pre=on_pre, method="euler", name=name)
     if on_post:
         kwargs["on_post"] = on_post
@@ -325,7 +355,8 @@ def _make_synapses(pre,post,syn_model: dict,name: str,learning: dict | None = No
         kwargs["namespace"] = merged_namespace
     return Synapses(pre, post, **kwargs)
 
-#入力からLiquid層内へのシナプスを作る
+
+# 入力からLiquid層内へのシナプスを作る
 def make_in_to_liq_synapses(G_in, G_liq, rng, cfg, name_prefix="S"):
     filters = cfg["USE_INPUT_FILTERS"]
     input_channels = cfg.get("USE_INPUT_CHANNELS", list(range(int(cfg.get("NUM_CHANNEL", 0)))))
@@ -334,8 +365,7 @@ def make_in_to_liq_synapses(G_in, G_liq, rng, cfg, name_prefix="S"):
     if input_rows is None:
         input_rows = [(ch, filter_name) for ch in input_channels for filter_name in filters]
     input_row_by_route = {
-        (int(ch), str(filter_name)): row
-        for row, (ch, filter_name) in enumerate(input_rows)
+        (int(ch), str(filter_name)): row for row, (ch, filter_name) in enumerate(input_rows)
     }
     route = cfg["IN_ROUTE"]
 
@@ -405,83 +435,12 @@ def make_in_to_liq_synapses(G_in, G_liq, rng, cfg, name_prefix="S"):
 
     return list(syn_map.values()), meta
 
-#入力ポアソンスパイクからLiquid層へのシナプスを作る
-def make_poisson_to_liq_synapses(G_liq, rng, cfg: dict, name_prefix="S_poisson"):
-    noise_cfg = dict(cfg.get("poisson_input", {}))
-    if not bool(noise_cfg.get("enabled", False)):
-        return [], [], []
 
-    rate_hz = float(noise_cfg.get("rate_hz", 5.0))
-    p_E, p_I = _read_post_ei_values(noise_cfg, "p")
-    scale_E, scale_I = _read_post_ei_values(noise_cfg, "scale")
-    current = str(noise_cfg.get("current", "exc")).lower()
-    on_pre = "H_syn_post += (w / (tau_r_post * tau_d_post)) / Hz"
-    current_sign = -1.0 if current in {"inh", "inhibitory", "i"} else 1.0
-
-    groups = []
-    synapse_list = []
-    meta = []
-
-    for layer_index, layer in enumerate(G_liq):
-        if noise_cfg.get("N_ratio") is not None:
-            n_noise = int(round(len(layer) * float(noise_cfg["N_ratio"])))
-        else:
-            n_noise = int(noise_cfg.get("N", 100))
-        if n_noise <= 0:
-            continue
-
-        noise_group = PoissonGroup(
-            n_noise,
-            rates=rate_hz * Hz,
-            name=f"G_poisson_liq{layer_index + 1}",
-        )
-        groups.append(noise_group)
-        for post_type, post, p, scale in (
-            ("E", layer.exc, p_E, scale_E),
-            ("I", layer.inh, p_I, scale_I),
-        ):
-            synapses = Synapses(
-                noise_group,
-                post,
-                model="w : 1",
-                on_pre=on_pre,
-                method="euler",
-                namespace={"Hz": Hz},
-                name=f"{name_prefix}_{post_type}_liq{layer_index + 1}",
-            )
-            synapses.connect(p=p)
-            if len(synapses):
-                synapses.w = init_in_to_liq(
-                    rng,
-                    len(synapses),
-                    scale=current_sign * scale,
-                    N_post=len(post),
-                )
-            synapses.delay = 0 * ms
-            synapse_list.append(synapses)
-            meta.append(
-                {
-                    "layer_index": layer_index,
-                    "N": n_noise,
-                    "rate_hz": rate_hz,
-                    "current": current,
-                    "post_type": post_type,
-                    "p": p,
-                    "scale": scale,
-                    "S": synapses,
-                    "G": noise_group,
-                }
-            )
-
-    return groups, synapse_list, meta
-
-#Liquid層内のシナプスを作る
+# Liquid層内のシナプスを作る
 def make_liq_intra_synapses(G_liq, rng, cfg: dict, name_prefix="S_liq_intra_"):
 
     syn_model = SYNAPSE_MODELS[cfg["synapse_model"]]["synapse"]
-    connect_fn = get_connection(
-        "liq_intra", cfg.get("liq_intra_connection", "random")
-    )
+    connect_fn = get_connection("liq_intra", cfg.get("liq_intra_connection", "random"))
     gain_pairs = cfg["liq_intra_gain_pairs"]
     p_pairs = cfg.get("p_liq_intra_pairs")
     if p_pairs is None:
@@ -546,6 +505,7 @@ def make_liq_intra_synapses(G_liq, rng, cfg: dict, name_prefix="S_liq_intra_"):
 
     return synapse_list, meta
 
+
 def make_output_neuron_groups(cfg: dict, rng):
     """出力層を全興奮性LIFで作る。直接のセンサー入力や再帰・戻り結合は持たない。"""
     model = NEURON_MODELS["LIF_E"]
@@ -568,88 +528,148 @@ def make_liq_to_out_synapses(G_liq, G_out, rng, cfg):
     if len(probabilities) != len(G_out) or len(gains) != len(G_out):
         raise ValueError("Output probabilities/gains need one dictionary per output layer")
     syn_model = SYNAPSE_MODELS[cfg["synapse_model"]]["synapse"]
-    rule_name = cfg.get("learning_rule", "off")
-    if rule_name not in LEARNING_RULES:
-        raise ValueError(f"Unknown learning rule: {rule_name}")
-    learning = LEARNING_RULES[rule_name]
-    learning_namespace = {}
-    params = cfg.get("learning_rule_models", {}).get(rule_name, {})
-    for name in learning["ns_vars"]:
-        if name not in params:
-            raise ValueError(f"Missing learning parameter: {rule_name}.{name}")
-        value = params[name]
-        if name.startswith("tau"):
-            if not np.isfinite(value) or value <= 0:
-                raise ValueError(f"Learning time constant must be positive: {name}")
-            value = value*ms
-        learning_namespace[name] = value
+    rule_names = cfg.get("learning_rule_liq_to_out", [cfg.get("learning_rule", "off")] * len(G_out))
+    if not isinstance(rule_names, (list, tuple)) or len(rule_names) != len(G_out):
+        raise ValueError("learning_rule_liq_to_out needs one rule per output layer")
+    if any(rule not in LEARNING_RULES for rule in rule_names):
+        raise ValueError(f"Unknown learning rules: {rule_names}")
+    per_output_params = cfg.get("OUTPUT_LEARNING_PARAMETERS")
+    per_output_seeds = cfg.get("OUTPUT_SEEDS")
+    if (
+        per_output_seeds is None
+        and cfg.get("SHARE_OUTPUT_INITIALIZATION", False)
+        and len(G_out) > 1
+    ):
+        per_output_seeds = [int(cfg.get("OUTPUT_SEED", int(cfg["BASE_SEED"]) + 1))] * len(G_out)
+    for values in (per_output_params, per_output_seeds):
+        if values is not None and len(values) != len(G_out):
+            raise ValueError("Per-output learning parameters/seeds need one entry per output group")
     for out_index, post in enumerate(G_out):
+        rule_name = rule_names[out_index]
+        learning = LEARNING_RULES[rule_name]
+        # 共通Liquidを受ける各出力群に、それぞれの学習時定数を与える。
+        params = (
+            per_output_params[out_index]
+            if per_output_params is not None
+            else cfg.get("learning_rule_models", {}).get(rule_name, {})
+        )
+        learning_namespace = {}
+        for name in learning["ns_vars"]:
+            if name not in params:
+                raise ValueError(f"Missing learning parameter: {rule_name}.{name}")
+            value = params[name]
+            if name.startswith("tau"):
+                if not np.isfinite(value) or value <= 0:
+                    raise ValueError(f"Learning time constant must be positive: {name}")
+                value = value * ms
+            learning_namespace[name] = value
+        # 同じseedを指定した出力群は、接続先と初期重みを一致させる。
+        output_rng = (
+            np.random.default_rng(int(per_output_seeds[out_index]))
+            if per_output_seeds is not None
+            else rng
+        )
         for key in ("EI", "II"):
             if probabilities[out_index].get(key, 0) != 0:
-                raise ValueError("Output neurons are excitatory; EI/II output probabilities must be zero")
+                raise ValueError(
+                    "Output neurons are excitatory; EI/II output probabilities must be zero"
+                )
         for liq_index, layer in enumerate(G_liq):
             for pair, pre, sign in [("EE", layer.exc, 1), ("IE", layer.inh, -1)]:
                 probability = float(probabilities[out_index][pair])
                 gain = float(gains[out_index][pair])
-                if not np.isfinite(probability) or not 0 <= probability <= 1 or not np.isfinite(gain) or gain < 0:
+                if (
+                    not np.isfinite(probability)
+                    or not 0 <= probability <= 1
+                    or not np.isfinite(gain)
+                    or gain < 0
+                ):
                     raise ValueError("Output probability must be 0..1 and gain finite/nonnegative")
                 if probability == 0:
                     continue
-                pre_ids, post_ids = np.nonzero(rng.random((len(pre), len(post))) < probability)
+                pre_ids, post_ids = np.nonzero(
+                    output_rng.random((len(pre), len(post))) < probability
+                )
                 if not len(pre_ids):
                     continue
-                syn = _make_synapses(pre, post, syn_model,
-                    name=f"S_liq{liq_index+1}_to_out{out_index+1}_{pair}", cfg=cfg,
-                    learning=learning if pair == "EE" and learning.get("learnable", False) else None,
-                    namespace=learning_namespace if pair == "EE" else None)
+                syn = _make_synapses(
+                    pre,
+                    post,
+                    syn_model,
+                    name=f"S_liq{liq_index+1}_to_out{out_index+1}_{pair}",
+                    cfg=cfg,
+                    learning=(
+                        learning if pair == "EE" and learning.get("learnable", False) else None
+                    ),
+                    namespace=learning_namespace if pair == "EE" else None,
+                )
                 syn.connect(i=pre_ids, j=post_ids)
-                setattr(syn, syn_model["w_attr"], init_liq_to_out(rng, len(syn), sign*gain, len(post)))
-                syn.delay = 0*ms
+                setattr(
+                    syn,
+                    syn_model["w_attr"],
+                    init_liq_to_out(output_rng, len(syn), sign * gain, len(post)),
+                )
+                syn.delay = 0 * ms
                 synapses.append(syn)
-                metadata.append({"synapses": syn, "liquid_index": liq_index,
-                                 "output_index": out_index,
-                                 "pre_offset": 0 if pair == "EE" else len(layer.exc)})
+                metadata.append(
+                    {
+                        "synapses": syn,
+                        "liquid_index": liq_index,
+                        "output_index": out_index,
+                        "learning_rule": rule_name if pair == "EE" else "off",
+                        "pre_offset": 0 if pair == "EE" else len(layer.exc),
+                    }
+                )
     return synapses, metadata
 
 
 # Liquid層のニューロン群とシナプス群を組み立て、モニターを登録する関数
-def make_liquid_network(net_cfg: dict, N_in: int, rng: np.random.Generator, run_cfg: dict):
+def make_liquid_network(
+    net_cfg: dict,
+    N_in: int,
+    rng: np.random.Generator,
+    run_cfg: dict,
+    *,
+    common_cfg: dict | None = None,
+):
     """入力・リキッド・任意の出力層を組み立て、monitor.pyの記録を登録する。"""
     input_ta0 = TimedArray(np.zeros((2, N_in)), dt=float(net_cfg["dt_ms"]) * ms)
     G_in = make_in_neuron_group(N_in=N_in, input_ta=input_ta0)
     G_liq = make_liquid_neuron_groups(net_cfg, rng)
     S_in, _ = make_in_to_liq_synapses(G_in, G_liq, rng, net_cfg)
-    G_poisson, S_poisson, _ = make_poisson_to_liq_synapses(G_liq, rng, net_cfg)
     S_intra, _ = make_liq_intra_synapses(G_liq, rng, net_cfg)
-    monitors = make_liquid_monitors(G_liq, rng, run_cfg)
+    # 記録間隔はrun、記録対象数などの共通条件はcommonから受け取る。
+    monitor_cfg = {**run_cfg, **(common_cfg or {})}
+    monitors = make_liquid_monitors(G_liq, rng, monitor_cfg)
 
     # リキッドの重み・モニタ選択の乱数列を変えないよう、出力層は独立した乱数を使う。
-    output_rng = np.random.default_rng(int(net_cfg["BASE_SEED"])+1)
+    output_seed = int(net_cfg.get("OUTPUT_SEED", int(net_cfg["BASE_SEED"]) + 1))
+    output_rng = np.random.default_rng(output_seed)
     G_out, S_out, output_meta = [], [], []
     output_monitors = {"M_out": [], "V_out": [], "V_out_indices": [], "objects": []}
     if net_cfg.get("output_enabled", False):
         G_out = make_output_neuron_groups(net_cfg, output_rng)
         S_out, output_meta = make_liq_to_out_synapses(G_liq, G_out, output_rng, net_cfg)
-        output_monitors = make_output_monitors(G_out, output_rng, run_cfg)
+        output_monitors = make_output_monitors(G_out, output_rng, monitor_cfg)
 
     net = Network()
     net.add(G_in)
-    net.add(*G_poisson)
     for layer in G_liq:
         net.add(layer.exc, layer.inh)
-    net.add(*(S_in + S_poisson + S_intra))
+    net.add(*(S_in + S_intra))
     net.add(*monitors["objects"])
     net.add(*G_out, *S_out, *output_monitors["objects"])
     return {
         "net": net,
         "G_in": G_in,
-        "G_poisson": G_poisson,
+        "input_rows": list(net_cfg.get("INPUT_ROWS", [])),
         "G_liq": G_liq,
         "S_in": S_in,
-        "S_poisson": S_poisson,
         "S_intra": S_intra,
-        "S_all": S_in + S_poisson + S_intra + S_out,
-        "G_out": G_out, "S_out": S_out, "output_connection_meta": output_meta,
+        "S_all": S_in + S_intra + S_out,
+        "G_out": G_out,
+        "S_out": S_out,
+        "output_connection_meta": output_meta,
         **{key: value for key, value in output_monitors.items() if key != "objects"},
         **{key: value for key, value in monitors.items() if key != "objects"},
     }

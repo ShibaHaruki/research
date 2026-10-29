@@ -1,9 +1,9 @@
 """入力・再帰・出力の重み行列の出力、結合構造付き重みの保存・復元・集計。"""
 
 from __future__ import annotations
+from d_tools.recording_io import read_record
 
 import re
-import json
 from pathlib import Path
 from typing import Any
 
@@ -121,62 +121,106 @@ def save_liquid_weight_matrices(
     for layer_index, matrix in sorted(intra_by_liq.items()):
         save_array(f"w_liq{layer_index}_intra.npy", matrix)
 
+    paths.extend(save_output_weight_matrices(out_dir, objects))
+    return paths
+
+
+def save_output_weight_matrices(out_dir, objects):
+    """Liquid→Readoutの結合行列だけを.npyで保存する。行はLiquid、列はReadout。"""
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
     for liquid_index, layer in enumerate(objects["G_liq"]):
         for output_index, group in enumerate(objects.get("G_out", [])):
             matrix = np.zeros((len(layer), len(group)), dtype=float)
             for meta in objects.get("output_connection_meta", []):
                 if meta["liquid_index"] == liquid_index and meta["output_index"] == output_index:
-                    matrix += _dense_w_matrix(meta["synapses"], len(layer), len(group),
-                                               pre_offset=meta["pre_offset"])
-            save_array(f"w_liq{liquid_index+1}_out{output_index+1}.npy", matrix)
+                    matrix += _dense_w_matrix(
+                        meta["synapses"], len(layer), len(group), pre_offset=meta["pre_offset"]
+                    )
+            path = out_dir / f"w_liq{liquid_index+1}_out{output_index+1}.npy"
+            np.save(path, matrix)
+            paths.append(path)
     return paths
 
 
-def save_weights(folder, objects):
-    """全結合の接続先・重みをweights.npzとtopology.jsonへ保存する。"""
-    folder = Path(folder); folder.mkdir(parents=True, exist_ok=True)
-    arrays = {}; entries = []
-    for index, syn in enumerate(objects['S_all']):
-        if 'w' not in syn.variables:
+def save_weights(folder, objects, *, name_overrides=None):
+    """復元用の接続情報と、従来形式の入力・再帰・出力重み行列.npyを保存する。"""
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    arrays = {}
+    entries = []
+    for index, syn in enumerate(objects["S_all"]):
+        if "w" not in syn.variables:
             continue
-        prefix = f's{index}'
-        arrays[prefix+'_i'] = np.asarray(syn.i[:], int)
-        arrays[prefix+'_j'] = np.asarray(syn.j[:], int)
-        arrays[prefix+'_w'] = np.asarray(syn.w[:]).copy()
-        entries.append({'key': prefix, 'name': syn.name,
-                        'n_pre': len(syn.source), 'n_post': len(syn.target)})
-    np.savez_compressed(folder/'weights.npz', **arrays)
-    topology = folder/'topology.json'
-    temporary = topology.with_suffix('.json.tmp')
-    temporary.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding='utf-8')
-    temporary.replace(topology)
+        prefix = f"s{index}"
+        arrays[prefix + "_i"] = np.asarray(syn.i[:], int)
+        arrays[prefix + "_j"] = np.asarray(syn.j[:], int)
+        arrays[prefix + "_w"] = np.asarray(syn.w[:]).copy()
+        name = (name_overrides or {}).get(syn.name, syn.name)
+        entries.append(
+            {"key": prefix, "name": name, "n_pre": len(syn.source), "n_post": len(syn.target)}
+        )
+    np.savez_compressed(folder / "weights.npz", **arrays)
+    from d_tools.recording_io import save_record
+
+    save_record(folder / "topology.npz", entries)
+    if all(key in objects for key in ("G_in", "G_liq")):
+        save_liquid_weight_matrices(folder, objects)
 
 
-def load_weights(folder, objects):
+def load_weights(folder, objects, *, name_overrides=None):
     """結合名・接続先・サイズを照合し、保存済み重みと初期状態を設定する。"""
     folder = Path(folder)
-    entries = json.loads((folder/'topology.json').read_text(encoding='utf-8'))
-    by_name = {syn.name: syn for syn in objects['S_all']}
-    expected = {syn.name for syn in objects['S_all'] if 'w' in syn.variables}
-    if {entry['name'] for entry in entries} != expected:
-        raise ValueError('Trained and evaluation synapse names differ')
-    with np.load(folder/'weights.npz') as data:
+    entries = read_record(folder / "topology.npz")
+    names = name_overrides or {}
+    by_name = {names.get(syn.name, syn.name): syn for syn in objects["S_all"]}
+    expected = {names.get(syn.name, syn.name) for syn in objects["S_all"] if "w" in syn.variables}
+    if {entry["name"] for entry in entries} != expected:
+        raise ValueError("Trained and evaluation synapse names differ")
+    with np.load(folder / "weights.npz") as data:
         for entry in entries:
-            syn = by_name[entry['name']]; key = entry['key']
-            if (len(syn.source), len(syn.target)) != (entry['n_pre'], entry['n_post']):
-                raise ValueError('Neuron counts differ from trained topology')
-            if not np.array_equal(syn.i[:], data[key+'_i']) or not np.array_equal(syn.j[:], data[key+'_j']):
-                raise ValueError('Trained and evaluation connectivity differ')
-            values = data[key+'_w']
+            syn = by_name[entry["name"]]
+            key = entry["key"]
+            if (len(syn.source), len(syn.target)) != (entry["n_pre"], entry["n_post"]):
+                raise ValueError("Neuron counts differ from trained topology")
+            if not np.array_equal(syn.i[:], data[key + "_i"]) or not np.array_equal(
+                syn.j[:], data[key + "_j"]
+            ):
+                raise ValueError("Trained and evaluation connectivity differ")
+            values = data[key + "_w"]
             if values.shape != (len(syn),) or not np.isfinite(values).all():
-                raise ValueError('Invalid saved weights')
+                raise ValueError("Invalid saved weights")
             syn.w = values
-    objects['net'].store('trial_initial')
+    objects["net"].store("trial_initial")
 
 
 def weight_summary(objects):
     """出力層への結合重みの平均とノルムを返す。"""
-    blocks = [np.asarray(s.w[:]) for s in objects['S_out']]
+    blocks = [np.asarray(s.w[:]) for s in objects["S_out"]]
     values = np.concatenate(blocks) if blocks else np.empty(0)
-    return {'mean_weight': float(values.mean()) if len(values) else 0.,
-            'weight_norm': float(np.linalg.norm(values))}
+    return {
+        "mean_weight": float(values.mean()) if len(values) else 0.0,
+        "weight_norm": float(np.linalg.norm(values)),
+    }
+
+
+def save_debug_weight_distributions(debug_dir, objects, *, name_overrides=None):
+    """Liquid→Readoutはreadout/weight、それ以外はliquid/weightへ結合群別に保存する。"""
+    from d_tools.plotting import save_weight_distribution
+
+    debug_dir = Path(debug_dir)
+    # Liquid単独の実験では、存在しないreadoutの空フォルダも作らない。
+    populations = ["liquid", "readout"] if objects.get("G_out") else ["liquid"]
+    for population in populations:
+        (debug_dir / population / "weight").mkdir(parents=True, exist_ok=True)
+    output_ids = {id(syn) for syn in objects.get("S_out", [])}
+    paths = []
+    for syn in objects["S_all"]:
+        if "w" not in syn.variables:
+            continue
+        population = "readout" if id(syn) in output_ids else "liquid"
+        name = (name_overrides or {}).get(syn.name, syn.name)
+        path = debug_dir / population / "weight" / f"{name}.pdf"
+        paths.append(save_weight_distribution(np.asarray(syn.w[:]), path, title=name))
+    return paths

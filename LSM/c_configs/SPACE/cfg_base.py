@@ -8,10 +8,18 @@ NETWORK_PRESETS = {
 CFG_BASE = {
     "NEURON_PRESET": ["LIF_default"],
     "SYNAPSE_PRESET": ["double_exp_default"],
-    "LEARNING_PRESET": ["off_default", "STDP_default", "T_STDP_default", "SRDP_default", "BCPNN_default"],
+    "LEARNING_PRESET": [
+        "off_default",
+        "STDP_default",
+        "T_STDP_default",
+        "SRDP_default",
+        "BCPNN_default",
+    ],
 }
 PRESET_MODELS = {
     "NEURON_PRESET": {"LIF_default": "LIF"},
     "SYNAPSE_PRESET": {"double_exp_default": "double_exp"},
-    "LEARNING_PRESET": {name+"_default": name for name in ["off", "STDP", "T_STDP", "SRDP", "BCPNN"]},
+    "LEARNING_PRESET": {
+        name + "_default": name for name in ["off", "STDP", "T_STDP", "SRDP", "BCPNN"]
+    },
 }

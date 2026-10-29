@@ -1,0 +1,60 @@
+# a_experiment
+
+`sample_sequences.py`は、試行番号の順序と学習・テスト分割を`g_tactile_results/sample_seq/`へ保存して読み込む処理です。学習則とrepが違っても、既定では同じ保存済み分割を使います。
+
+このフォルダでは実験条件とLiquid State Machine へ入力するフィルタの定義をしています
+
+## Files
+
+- `paths.py`
+  - 入力データの場所、結果・校正・相互相関解析の保存先
+  - 結果フォルダの階層と名前
+  - E→出力の結合確率・gain、学習則名、パラメータ組み合わせによる保存先
+  - 学習、テスト、実験実行、STDP時定数スイープで共通利用
+  - フォルダ名にはwmin・wmaxを含めず、STDPではA_plus・A_minusも含めない
+  - 学習ありは各パラメータフォルダ内のrep1〜rep15などで分け、各repの下にtrainingとtestを置く
+  - 学習offでは学習則パラメータ階層を作らず、off/rep番号/test/debug・eval・weightへ保存する
+  - debugはliquid/素材名とreadout/素材名へ分け、ラスタと選択ニューロンの膜電位をPDF保存する
+
+- `experiment_sets.py`
+  - 実行時キャッシュのフォルダ名と環境変数の対応
+  - Matplotlibの描画方式、Brian2の実行方式・ログ設定
+  - 使用する素材
+  - センサー数
+  - サンプル数
+  - 学習・液体・評価条件
+  - `EVAL_SET["base"]`: 分類の分割数、評価用seed、集約時間窓
+
+- `input_filters.py`
+  - RI、SI、USIフィルタ
+  - Merkel、Meissnerフィルタ
+  - センサーゲイン
+  - フィルタゲイン
+
+## Input filters
+
+- RI: Rapidly adapting input
+- SI: Slowly adapting input
+- USI: Ultra-slowly adapting input
+- Merkel: RI成分とSI・USI成分の合成
+- Meissner: RI成分
+
+## Gains
+
+- `SENSOR_GAIN`
+  - センサーごとの振幅補正
+
+- `FILTER_GAIN`
+  - フィルタごとの振幅補正
+
+## Usage
+
+```python
+from a_experiment.input_filters import RI, SI, USI
+from a_experiment.experiment_sets import COMMON_SETS
+
+- `input_processing.py`
+  - 素材・試行番号からCSVを一意に取得
+  - 入力配列の行とセンサー・フィルタの対応付け
+  - 現在の切り出し範囲・gain・RI/SIを使った、時刻×入力経路の入力電流作成
+  - Liquid単独・学習・テスト・キャリブレーションが共通利用

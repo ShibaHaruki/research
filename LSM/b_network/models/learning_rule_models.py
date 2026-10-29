@@ -3,7 +3,6 @@
 # models/learning_rule_models.py
 from .model_utils import register_model
 
-
 REQUIRED_LEARNING_RULE_KEYS = (
     "eqs",
     "on_pre",

@@ -3,7 +3,6 @@
 import numpy as np
 from brian2 import Synapses
 
-
 LIQ_INTRA = "liq_intra"
 PAIR_KEYS = ("EE", "EI", "IE", "II")
 CONNECTIONS: dict[str, dict[str, callable]] = {}
@@ -121,7 +120,3 @@ def connect_intra_distance(
 
     for key in pairs:
         s.connect(condition=PAIR_CONDITIONS[key], p=f"{p_map[key]}*exp(-({dist})/{lam})")
-
-
-# Compatibility alias for older code that imported the private name.
-_PAIR_COND = PAIR_CONDITIONS

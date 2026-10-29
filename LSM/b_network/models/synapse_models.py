@@ -1,10 +1,9 @@
-"""二重指数シナプスなど、電流応答モデルを登録する設定。"""
+"""二重指数関数型（double exponential）シナプスの電流応答モデル。"""
 
 # models/synapse_models.py
 from brian2 import Hz
 
 from .model_utils import register_model
-
 
 REQUIRED_SYNAPSE_MODEL_KEYS = (
     "eqs",
@@ -65,25 +64,6 @@ DOUBLE_EXP_SYNAPSE = synapse_path(
     namespace={"Hz": Hz},
 )
 
-DOUBLE_EXP_STP_EQS = """
-w : 1
-dx_stp/dt = (1.0 - x_stp) / tau_stp_rec : 1 (clock-driven)
-du_stp/dt = (U_stp - u_stp) / tau_stp_facil : 1 (clock-driven)
-"""
-
-DOUBLE_EXP_STP_NS_VARS = ["tau_stp_rec", "tau_stp_facil", "U_stp"]
-
-DOUBLE_EXP_STP_SYNAPSE = synapse_path(
-    eqs=DOUBLE_EXP_STP_EQS,
-    on_pre="""
-u_stp += U_stp * (1.0 - u_stp)
-H_syn_post += (w * u_stp * x_stp / (tau_r_post * tau_d_post)) / Hz
-x_stp = clip(x_stp * (1.0 - u_stp), 0.0, 1.0)
-""",
-    ns_vars=DOUBLE_EXP_STP_NS_VARS,
-    namespace={"Hz": Hz},
-)
-
 SYNAPSE_MODELS: dict[str, dict] = {}
 
 DOUBLE_EXP_MODEL = register_model(
@@ -92,16 +72,6 @@ DOUBLE_EXP_MODEL = register_model(
     current_synapse_model(
         post_eqs=DOUBLE_EXP_POST_EQS,
         synapse=DOUBLE_EXP_SYNAPSE,
-    ),
-    REQUIRED_SYNAPSE_MODEL_KEYS,
-)
-
-DOUBLE_EXP_STP_MODEL = register_model(
-    SYNAPSE_MODELS,
-    "double_exp_stp",
-    current_synapse_model(
-        post_eqs=DOUBLE_EXP_POST_EQS,
-        synapse=DOUBLE_EXP_STP_SYNAPSE,
     ),
     REQUIRED_SYNAPSE_MODEL_KEYS,
 )

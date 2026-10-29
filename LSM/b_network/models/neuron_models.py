@@ -3,7 +3,6 @@
 # models/neuron_models.py
 from .model_utils import register_model
 
-
 REQUIRED_NEURON_KEYS = (
     "eqs",
     "threshold",
@@ -52,6 +51,7 @@ def neuron_model(
 
 NEURON_MODELS: dict[str, dict] = {}
 
+
 def _make_lif_model() -> dict:
     return neuron_model(
         eqs=COMMON_NEURON_MODEL_PARAMETERS + """
@@ -61,6 +61,7 @@ def _make_lif_model() -> dict:
         reset="v = v_reset",
         refractory="timestep(t - lastspike, dt) <= timestep(t_ref, dt)",
     )
+
 
 # The E/I groups use separate Brian2 model registrations. Their parameters
 # are assigned independently during network construction.

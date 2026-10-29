@@ -1,59 +1,20 @@
-# Jupyterでの解析
+# 解析ノート
 
-`calibration_liquid.ipynb` を開き、必要なライブラリが使えるPythonカーネルを選択してください（`.mlflow-venv` は削除済みです）。上から順に実行します。
+NumPy・pandas・Matplotlib・scikit-learn・SciPyを利用できるJupyterカーネルで、上から順に実行してください。入力・結果のファイルは削除しません。
 
-入力は `../g_tactile_results/calibration/all_materials/` の保存済み発火活動です。状態の再シミュレーションやgain探索は行いません。
+- `calibration_liquid.ipynb`: Liquid Eの発火率、PCA、分類精度、ニューロン×時間の係数・SVDパターン、ニューロン削減、時間幅別の分類を表示します。
+- `calibration_output.ipynb`: 校正後のLiquid EとReadoutを同じ分割で比較します。出力数は保存済みの校正設定から読み取り、PCAは最大40成分です。
+- `off_output_neuron_reduction.ipynb`: gain 0.2706のoff rep1の保存済み出力記録を使い、80・75・70…5・1個の出力ニューロンで分類精度を比較します。ランダム削減順10通り、固定の層別10分割で評価し、平均・標準偏差と選択ごとの正答率を表示します。
 
-1. 全1600次元の混同行列、素材ごとの発火率分布、ニューロンごとの素材別発火率
-2. PCAの3D・2D散布図、累積寄与率
-3. PC1〜PC40のローディングヒートマップと時間波形
-4. 集団平均の時間応答とPCスコアの相関
-5. 少数パターンによるPCスコアの再現、必要パターン数
-6. 各PCのパターン詳細（ニューロン重み・時間重み・素材別寄与）
-7. 以降：PC数別の分類評価・集計・グラフ
+表示用PCAは全試行、分類評価用PCAは各分割の学習側だけで計算します。どちらも標準化はしません。図・表はノート内に表示し、別の結果ファイルへ保存しません。
 
-興奮性80ニューロン、25 ms×20ビン、標準化なしで解析します。結果はノートブックに表示し、画像・CSVなどの結果ファイルは自動保存しません。
+校正結果の集計は`output_summary.npz`から読みます。過去の`output_summary.json`も読み込み専用で対応します。`test_config_snapshot.json`などのJSONはパラメータ記録です。
 
-## リキッド層と出力層の比較
+相互相関の計算は次の入口を使います。
 
-`calibration_output.ipynb` は、リキッドE80個と出力40個を同じ分割で比較します。
-入力は `../g_tactile_results/calibration/output_calibration/all_materials/` の保存済み発火活動です。
-条件はE→出力の結合確率11%、8素材×324試行です。gainは今回の校正結果 `output_summary.json` から読み込みます。
-出力層の最初のコードセルでは、素材別の発火率の箱ひげ図とニューロンごとの素材別平均発火率も表示します。
-全2592試行を1回ずつ評価側へ回す層別10分割交差検証で、全特徴とPC1〜PC40の正答率・混同行列を表示します。
-PCAの2D・3D散布図と累積寄与率も表示します。分類用PCAは各分割の学習側だけで計算し、標準化は行いません。
-図や表はノートブック内で表示し、別の結果フォルダへ保存しません。
+```powershell
+python f_run/run_calibration.py correlation --self-test
+python f_run/run_calibration.py correlation
+```
 
-## リキッドニューロンの自己相関
-
-`liquid_autocorrelation.ipynb` は `../g_tactile_results/calibration/all_materials/` を読み込み、全100ニューロン（E80・I20）の25 msビン発火率の自己相関を解析します。上から順に実行してください。
-
-試行内で時間平均を引き、試行境界をまたがずに計算します。既定の最大lagは250 msです。素材別ヒートマップ、素材平均波形を除いた残差との比較、各ニューロンの素材別ACF曲線、数値表を表示します。`NEURON_SELECTION` を `E` または `I` にすると対象を絞れます。結果はノートブック内に表示し、別の画像・CSVは保存しません。
-
-## 主成分をまたぐSVDパターンの類似度とグループ化
-
-`liquid_pattern_groups.ipynb` を上から順に実行します。他のノートブックの変数には依存しません。`calibration/all_materials` のE80個×20時間ビンを使い、既存の先頭5分割における平均R²≥0.90で採用パターン数を選択します。比較するパターン自体は先頭分割のPCA/SVDでそろえます。
-
-ニューロン方向・時間方向・両方向のコサイン類似度、異なるPC間の類似ペア、完全連結法でのグループ一覧を表示します。`SIMILARITY_THRESHOLD=0.85` による群分けと、`TARGET_GROUPS=40` による固定40群を比較できます。代表パターンと群の構成PC、正・負それぞれの重みが大きいEニューロンIDも表示します。全群の詳細は `DETAIL_GROUP_IDS=list(range(1,41))` で確認できます。
-
-符号反転したパターンは同じ形として比較しますが、正負の寄与は別に扱う必要があります。40群への分割は出力設計の検討用であり、1群が1出力ニューロンで再現できることや分類性能を保証しません。結果はノートブック内のみで、画像・CSVの外部保存や仮想環境の復元は行いません。
-
-## SVDの60パターンを正負に分けた120出力
-
-`svd_signed_output120.ipynb` は `g_tactile_results/svd_signed_output120` の状態と分類結果を読み込みます。実験は `python f_run/run_svd_output120.py run --resume` で実行・再開できます（NumPyが使えるPythonが必要です）。
-
-PC1〜PC13の60パターンを、正・負の120出力に対応させます。全E80個からの接続を用意し、各gainは正側max(a,0)、負側max(-a,0)、共通倍率1です。特異値sと時間重みbはgainに掛けず、学習と発火率合わせのgain探索は行いません。全素材324試行を流し、素材ごとにsid203のdebugも記録します。PCA/SVDは先頭の固定ホールドアウトの学習1,808試行だけで計算し、784試行でリキッドE、PC1〜13、120出力を比較します。通常の40出力の設定は変更しません。
-
-### SVD120出力の平均発火率合わせ
-
-`python f_run/run_svd_output120_rate_match.py` で、SVD由来の相対gainを保った共通倍率を調整します。目標は学習1,808試行におけるリキッドE80個の平均発火率で、出力側は無活動枝も含む全120個の平均です。評価784試行は倍率の選択に使いません。倍率1の結果を残し、調整後の全素材状態・debug・分類結果は `g_tactile_results/svd_signed_output120_rate_matched` に保存します。許容差の既定値は1 Hz、倍率の刻みは0.0001です。
-
-調整後の比較・混同行列・debugは `svd_signed_output120_rate_matched.ipynb` を使用します。倍率1の元ノートブックは残しています。
-
-## 固定Liquid→Readout結合の相互相関
-
-`liquid_readout_crosscorrelation.ipynb` は、保存済みの出力校正結果（Liquid E80→Readout40、接続確率11%、gain 0.2706）から、実際に接続している353ペアだけを図・表・統計で分析します。8素材×324試行の0.1 msスパイク列を使い、素材別平均、Liquid/Readout IDを指定した接続先／接続元のヒートマップ、1出力ニューロンに入るLiquid入力間のばらつき、素材別の平均・分散・SD・四分位数、1試行×1結合を等重みとしたlag分布、実接続のペア指標、固定STDP窓と候補時定数の参考更新量を確認できます。元データ配列には未接続ペアも含みますが、ノートブックでは解析対象から除外します。
-
-`python f_run/run_liquid_readout_correlation.py` で計算します。実行時に固定重みと保存済み入力からスパイク時刻を再現し、保存済み25 ms発火数との一致を確認します。結果は `g_tactile_results/liquid_readout_crosscorrelation_allpairs/` に保存します。正lagはLiquid先行を表します。shift predictor補正値は素材応答の共有成分を記述的に差し引く比較値で、因果性の検定ではありません。候補STDP窓の値は固定スパイク列に対するclip前推定であり、学習後の性能や最適時定数を直接示しません。
-
-この解析は保存済みの旧校正行列（40 Readout、p=0.11、gain=0.2706）を対象とします。現在の`cfg_network.py`も出力結合確率はp=0.11ですが、出力gainは0.2963のため、保存済み解析とはgain条件が異なります。
+既定の保存先は`g_tactile_results/liquid_readout_crosscorrelation_allpairs/`です。正lagはLiquid先行です。shift predictor補正は共有する素材応答の成分を比較するためのもので、単独ニューロンの因果性や最適STDP時定数を直接示すものではありません。
