@@ -10,7 +10,8 @@ mlflow>=2.0
 cmake>=3.26
 
 # LSMの分類・並列計算制御
-scikit-learn>=1.9.1
+# Python 3.10でも互換版を選べるよう、利用APIに必要な範囲だけ指定する。
+scikit-learn>=1.7.2
 threadpoolctl>=3.7.0
 
 # h_analysisのノートブック実行環境
