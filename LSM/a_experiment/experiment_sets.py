@@ -165,7 +165,7 @@ TRAINING_SETS = {
             "Japanese_paper",
             "wood_board",
         ],
-        "NUM_TRAINING_EPOCH": [3],  # 学習の繰り返し回数。
+        "NUM_TRAINING_EPOCH": [10],  # 学習の繰り返し回数。
         "NUM_TRAINING_SAMPLE": [100],
         "WEIGHT_TRACE_SYNAPSES": 10,  # 学習中の重み変化を詳しく記録する結合数。
     },

@@ -125,7 +125,8 @@ def save_liquid_weight_matrices(
     return paths
 
 
-def save_output_weight_matrices(out_dir, objects):
+def save_output_weight_matrices(out_dir, objects, *, filename_suffix=""):
+    # サイクル保存では番号付きの接尾辞を付け、同じフォルダ内で区別する。
     """Liquid→Readoutの結合行列だけを.npyで保存する。行はLiquid、列はReadout。"""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -138,7 +139,7 @@ def save_output_weight_matrices(out_dir, objects):
                     matrix += _dense_w_matrix(
                         meta["synapses"], len(layer), len(group), pre_offset=meta["pre_offset"]
                     )
-            path = out_dir / f"w_liq{liquid_index+1}_out{output_index+1}.npy"
+            path = out_dir / f"w_liq{liquid_index+1}_out{output_index+1}{filename_suffix}.npy"
             np.save(path, matrix)
             paths.append(path)
     return paths
@@ -205,22 +206,85 @@ def weight_summary(objects):
     }
 
 
-def save_debug_weight_distributions(debug_dir, objects, *, name_overrides=None):
-    """Liquid→Readoutはreadout/weight、それ以外はliquid/weightへ結合群別に保存する。"""
-    from d_tools.plotting import save_weight_distribution
+def save_debug_weight_distributions(
+    debug_dir, objects, *, name_overrides=None, weight_overrides=None
+):
+    """重み分布と実座標を保存する。指定した結合群は状態を変えず別時点の重みで描く。"""
+    from d_tools.plotting import save_weight_distribution, save_liquid_positions
 
-    debug_dir = Path(debug_dir)
-    # Liquid単独の実験では、存在しないreadoutの空フォルダも作らない。
-    populations = ["liquid", "readout"] if objects.get("G_out") else ["liquid"]
-    for population in populations:
-        (debug_dir / population / "weight").mkdir(parents=True, exist_ok=True)
-    output_ids = {id(syn) for syn in objects.get("S_out", [])}
+    network_dir = Path(debug_dir) / "network"
+    network_dir.mkdir(parents=True, exist_ok=True)
     paths = []
     for syn in objects["S_all"]:
         if "w" not in syn.variables:
             continue
-        population = "readout" if id(syn) in output_ids else "liquid"
         name = (name_overrides or {}).get(syn.name, syn.name)
-        path = debug_dir / population / "weight" / f"{name}.pdf"
-        paths.append(save_weight_distribution(np.asarray(syn.w[:]), path, title=name))
+        path = network_dir / f"{name}.pdf"
+        # 学習debugでは初期重みのコピーを使い、学習済みネットワークを変更しない。
+        values = np.asarray((weight_overrides or {}).get(name, syn.w[:]))
+        if values.shape != (len(syn),):
+            raise ValueError(f"Weight histogram shape mismatch: {name}")
+        paths.append(save_weight_distribution(values, path, title=name))
+    for index, layer in enumerate(objects["G_liq"], start=1):
+        # 再配置せず、ネットワーク構築時に割り当てられた座標をそのまま描画する。
+        excitatory = np.column_stack([np.asarray(getattr(layer.exc, axis)[:]) for axis in "xyz"])
+        inhibitory = np.column_stack([np.asarray(getattr(layer.inh, axis)[:]) for axis in "xyz"])
+        paths.append(
+            save_liquid_positions(
+                excitatory,
+                inhibitory,
+                network_dir / f"liquid_layer{index}_positions_3d.pdf",
+                title=f"Liquid layer {index}: neuron positions",
+            )
+        )
+    return paths
+
+
+def save_training_weight_histograms(initial_dir, final_dir=None):
+    """Liquid→Readoutの保存済み実結合から学習前後の分布を作り、軸とビンを揃える。"""
+    from d_tools.plotting import save_weight_histogram_panels
+
+    folders = [Path(initial_dir)] + ([Path(final_dir)] if final_dir is not None else [])
+    snapshots = []
+    for folder in folders:
+        entries = read_record(folder / "topology.npz")
+        with np.load(folder / "weights.npz", allow_pickle=False) as arrays:
+            snapshots.append(
+                {entry["name"]: arrays[entry["key"] + "_w"].copy() for entry in entries}
+            )
+    if any(set(values) != set(snapshots[0]) for values in snapshots):
+        raise ValueError("Initial and final synapse groups must match")
+    paths = []
+    # 学習対象であるLiquid→Readoutだけを、学習前後の比較図として保存する。
+    # 行列の未結合ゼロは数えず、topologyに記録された実結合の重みだけを使う。
+    names = [name for name in snapshots[0] if "_to_out" in name]
+    if not names:
+        return paths
+    edges = {}
+    limits = {}
+    for name in names:
+        combined = np.concatenate([values[name] for values in snapshots])
+        if not np.isfinite(combined).all():
+            raise ValueError("Weights must be finite")
+        edges[name] = np.histogram_bin_edges(combined, bins=40)
+        # 学習前後で縦軸も共通にし、分布の変化をそのまま比較できるようにする。
+        limits[name] = (
+            max(
+                max(np.histogram(values[name], bins=edges[name])[0], default=0)
+                for values in snapshots
+            )
+            * 1.1
+            or 1.0
+        )
+    for index, (folder, values) in enumerate(zip(folders, snapshots)):
+        phase = "Before training" if index == 0 else "After training"
+        paths.append(
+            save_weight_histogram_panels(
+                {name: values[name] for name in names},
+                edges,
+                limits,
+                folder / "readout_weight_histograms.pdf",
+                title=f"{phase} | Liquid -> Readout",
+            )
+        )
     return paths

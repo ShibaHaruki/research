@@ -25,6 +25,7 @@ from a_experiment.paths import (
     readout_seed_directory,
     shared_readout_seed_directory,
     trained_weight_directory,
+    training_weight_directory,
 )
 from f_run.common import cfg_from_args, validate_cfg, cfg_from_snapshot, debug_readout_materials
 from d_tools.progress import wait_with_progress
@@ -130,7 +131,7 @@ def add_sweep_arguments(parser):
         nargs="+",
         type=float,
         default=None,
-        help="Optional subset of tau candidates (5..250 ms, multiples of 5)",
+        help="FIXED/cfg_network_stdp.pyに定義された時定数候補の一部だけを実行する",
     )
     parser.add_argument("--resume", action="store_true", help="Reuse completed stages")
     parser.add_argument("--plan", action="store_true", help="Print sweep plan without running")
@@ -201,7 +202,9 @@ def run_sweep_worker(plan_file, seed_index):
             _check_existing_configuration(cfg)
             folder = training_directory(cfg)
             final = trained_weight_directory(folder, rep)
-            summary = folder / f"training_summary_rep{rep}.npz"
+            summary = (
+                training_weight_directory(folder, "progression") / f"training_summary_rep{rep}.npz"
+            )
             if final.exists() and record_exists(summary) and plan["resume"]:
                 debug = folder / "debug" / "summary.npz"
                 if cfg["common"].get("DEBUG_EACH_MATERIAL", True) and not record_exists(debug):
@@ -226,7 +229,9 @@ def run_sweep_worker(plan_file, seed_index):
             )
         for cfg in configurations:
             folder = training_directory(cfg)
-            summary = read_record(folder / f"training_summary_rep{rep}.npz")
+            summary = read_record(
+                training_weight_directory(folder, "progression") / f"training_summary_rep{rep}.npz"
+            )
             save_record(
                 folder / f"job_result_{stage}_rep{rep}.npz",
                 {
@@ -463,7 +468,10 @@ def run_parameter_sweep(
         or len(set(tau_candidates_ms)) != len(tau_candidates_ms)
         or any(t not in TAU_CANDIDATES_MS for t in tau_candidates_ms)
     ):
-        raise ValueError("Use distinct tau candidates from 250 to 5 ms, in steps of 5")
+        # 上限変更後も古い範囲を案内しないよう、実際の候補からメッセージを作る。
+        raise ValueError(
+            f"Use distinct tau candidates defined in cfg_network_stdp.py: {TAU_CANDIDATES_MS}"
+        )
     workers = min(os.cpu_count() or 1, seed_count) if workers is None else workers
     if min(seed_count, rep, workers) < 1:
         raise ValueError("Seed count, workers and rep must be positive")

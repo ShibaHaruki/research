@@ -69,7 +69,7 @@ class TrainingRecorder:
             matrix[0] = (
                 np.concatenate([np.asarray(s.w[:]) for s in synapses]) if size else np.empty(0)
             )
-            save_output_weight_matrices(progress / "cycle_0000", view)
+            save_output_weight_matrices(progress / "cycles", view, filename_suffix="_cycle_0000")
             topology = []
             start = 0
             for syn in synapses:
@@ -124,6 +124,11 @@ class TrainingRecorder:
                     partial=partial,
                     matrix=matrix,
                     synapses=synapses,
+                    # debug用に学習前の出力重みを保持し、終了時にも初期分布を表示する。
+                    initial_output_weights={
+                        names.get(syn.name, syn.name): np.asarray(syn.w[:]).copy()
+                        for syn in synapses
+                    },
                     monitors=monitors,
                     connections=connections,
                     enabled=enabled,
@@ -146,8 +151,6 @@ class TrainingRecorder:
                 monitor.active = bool(enabled and block["enabled"])
 
     def after_trial(self, material, sid, epoch, result=None):
-        from d_tools.recording_io import save_record
-
         if material not in self.materials or material in [r["material"] for r in self.pending]:
             raise ValueError("Each material must appear exactly once in a training cycle")
         self.presentations += 1
@@ -166,7 +169,11 @@ class TrainingRecorder:
             for block in self.blocks:
                 values = [np.asarray(s.w[:]) for s in block["synapses"]]
                 block["matrix"][row] = np.concatenate(values) if values else np.empty(0)
-                save_output_weight_matrices(block["progress"] / f"cycle_{row:04d}", block["view"])
+                save_output_weight_matrices(
+                    block["progress"] / "cycles",
+                    block["view"],
+                    filename_suffix=f"_cycle_{row:04d}",
+                )
             self.pending.clear()
         liquid_sources = []
         for index, block in enumerate(self.blocks):
@@ -216,23 +223,7 @@ class TrainingRecorder:
             else:
                 times = np.asarray([0.0, self.duration])
                 traces = np.empty((0, 2))
-            progress = block["progress"] / material
-            progress.mkdir(exist_ok=True)
-            np.save(progress / "times_ms.npy", times)
-            np.save(progress / "weights.npy", traces)
-            save_record(
-                progress / "trace.npz",
-                {
-                    "material": material,
-                    "epoch": epoch,
-                    "trial_id": int(sid),
-                    "learning_enabled": True,
-                    "connections": block["connections"],
-                    "sample_interval_ms": float(block["cfg"]["common"]["dt_s"]) * 1000,
-                    "representative_trial": "First actual training presentation of this material",
-                    "times_include_final_trial_endpoint": True,
-                },
-            )
+            # 素材別の数値ファイルは保存せず、試行内の重み変化はdebugのPDFだけ残す。
             save_weight_changes(
                 times,
                 traces,
@@ -264,7 +255,10 @@ class TrainingRecorder:
         for block in self.blocks:
             if block["enabled"]:
                 save_debug_weight_distributions(
-                    block["folder"] / "debug", block["view"], name_overrides=block["names"]
+                    block["folder"] / "debug",
+                    block["view"],
+                    name_overrides=block["names"],
+                    weight_overrides=block["initial_output_weights"],
                 )
                 save_record(block["folder"] / "debug/summary.npz", block["reports"])
 
@@ -299,6 +293,7 @@ class TrainingRecorder:
                     updates,
                     block["progress"] / "convergence.pdf",
                     title=f"Liquid -> Readout | squared weight changes per {self.cycle_size} training trials",
+                    epochs=[row["epoch"] for row in self.rows],
                 )
             save_record(
                 block["progress"] / "progression.npz",

@@ -7,10 +7,28 @@ from pathlib import Path
 import numpy as np
 
 
-def save_weight_convergence(presentations, squared_updates, path, *, title):
-    """直前の保存時点からの全実結合の重み変化二乗和を、そのまま表示する。"""
+def save_weight_convergence(presentations, squared_updates, path, *, title, epochs=None):
+    """全実結合の重み変化二乗和と、各保存時点のエポック区切りを表示する。"""
     import matplotlib.pyplot as plt
 
+    presentations = np.asarray(presentations, dtype=float)
+    squared_updates = np.asarray(squared_updates, dtype=float)
+    if presentations.ndim != 1 or squared_updates.shape != presentations.shape:
+        raise ValueError("Expected matching 1D trial counts and squared updates")
+    epoch_values = None if epochs is None else np.asarray(epochs)
+    if epoch_values is not None:
+        if (
+            epoch_values.shape != presentations.shape
+            or not len(epoch_values)
+            or not np.isfinite(epoch_values).all()
+            or np.any(epoch_values < 1)
+            or not np.equal(epoch_values, np.floor(epoch_values)).all()
+            or np.any(np.diff(epoch_values) < 0)
+            or not np.isfinite(presentations).all()
+            or presentations[0] <= 0
+            or np.any(np.diff(presentations) <= 0)
+        ):
+            raise ValueError("Expected increasing trial counts and ordered positive epoch numbers")
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(11, 5), layout="constrained")
@@ -19,6 +37,23 @@ def save_weight_convergence(presentations, squared_updates, path, *, title):
         ax.set(
             xlabel="Training trials completed", ylabel="Sum of squared weight changes", title=title
         )
+        if epoch_values is not None:
+            # エポック最後の保存時点を区切りにし、上側の軸には区間中央へ番号を置く。
+            centers, labels = [], []
+            left = 0.0
+            for index, epoch in enumerate(np.unique(epoch_values)):
+                right = float(presentations[epoch_values == epoch][-1])
+                if index % 2 == 0:
+                    ax.axvspan(left, right, color="gray", alpha=0.06, zorder=0)
+                if index:
+                    ax.axvline(left, color="gray", linestyle="--", linewidth=1, alpha=0.8)
+                centers.append((left + right) / 2)
+                labels.append(str(int(epoch)))
+                left = right
+            ax.set_xlim(0, presentations[-1])
+            epoch_axis = ax.secondary_xaxis("top")
+            epoch_axis.set_xticks(centers, labels=labels)
+            epoch_axis.set_xlabel("Training epoch")
         ax.ticklabel_format(axis="y", style="sci", scilimits=(-3, 3), useOffset=False)
         ax.grid(alpha=0.25)
         fig.savefig(path)
@@ -357,6 +392,82 @@ def save_liquid_debug(data, path, *, title, n_excitatory=80):
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(path, dpi=150)
+    finally:
+        plt.close(fig)
+    return path
+
+
+def save_liquid_positions(excitatory, inhibitory, path, *, title):
+    """Liquidの実座標を、興奮性は青・抑制性は赤の3次元散布図でPDFへ保存する。"""
+    import matplotlib.pyplot as plt
+
+    # 座標はネットワーク内の無次元値。物理的な距離への換算は行わない。
+    groups = [
+        ("Excitatory", excitatory, "tab:blue", "^"),
+        ("Inhibitory", inhibitory, "tab:red", "o"),
+    ]
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig = plt.figure(figsize=(8, 7), layout="constrained")
+    try:
+        ax = fig.add_subplot(111, projection="3d")
+        for label, positions, color, marker in groups:
+            positions = np.asarray(positions, dtype=float)
+            if positions.ndim != 2 or positions.shape[1] != 3 or not np.isfinite(positions).all():
+                raise ValueError("Neuron positions must be a finite N x 3 array")
+            ax.scatter(
+                *positions.T,
+                color=color,
+                marker=marker,
+                s=40,
+                alpha=0.85,
+                label=f"{label} (n={len(positions)})",
+            )
+        ax.set(
+            xlabel="X (dimensionless)",
+            ylabel="Y (dimensionless)",
+            zlabel="Z (dimensionless)",
+            title=title,
+            xlim=(0, 1),
+            ylim=(0, 1),
+            zlim=(0, 1),
+        )
+        ax.set_box_aspect((1, 1, 1))
+        ax.legend(loc="upper left")
+        fig.savefig(path)
+    finally:
+        plt.close(fig)
+    return path
+
+
+def save_weight_histogram_panels(groups, bin_edges, y_limits, path, *, title):
+    """結合群別の重み分布を1枚にまとめ、指定された共通軸で保存する。"""
+    import matplotlib.pyplot as plt
+
+    columns = min(2, len(groups))
+    rows = (len(groups) + columns - 1) // columns
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig, axes = plt.subplots(
+        rows, columns, figsize=(7 * columns, 3.3 * rows), squeeze=False, layout="constrained"
+    )
+    try:
+        for ax, (name, values) in zip(axes.flat, groups.items()):
+            ax.hist(values, bins=bin_edges[name], color="steelblue", edgecolor="white")
+            ax.set(
+                title=f"{name} | n={len(values):,}",
+                xlabel="Synaptic weight",
+                ylabel="Number of connections",
+                xlim=(bin_edges[name][0], bin_edges[name][-1]),
+                ylim=(0, y_limits[name]),
+            )
+            if len(values):
+                ax.axvline(np.mean(values), color="darkorange", linestyle="--", label="Mean")
+                ax.legend()
+        for ax in list(axes.flat)[len(groups) :]:
+            ax.set_visible(False)
+        fig.suptitle(title)
+        fig.savefig(path)
     finally:
         plt.close(fig)
     return path

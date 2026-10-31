@@ -93,6 +93,13 @@ def save_training_configuration(folder, cfg):
             temporary.unlink(missing_ok=True)
 
 
+def _shared_network_parameters(record):
+    """共通設定から条件ごとのエポック数だけを除く。完全な値は各学習設定に残す。"""
+    record = deepcopy(record)
+    record.get("training", {}).pop("NUM_TRAINING_EPOCH", None)
+    return record
+
+
 def save_parameter_snapshots(cfg, *, rep=1):
     """共通設定と学習則設定を分け、同じ保存先に異なる条件が混在しないよう確認する。"""
     files = parameter_snapshot_files(cfg, rep)
@@ -106,6 +113,9 @@ def save_parameter_snapshots(cfg, *, rep=1):
         name: getattr(function, "__name__", str(function))
         for name, function in cfg.get("filter_funcs", {}).items()
     }
+    # 時定数別の条件追加時にエポック数が違っても、共通ネットワークを共有できる。
+    # 同じ条件・repの再利用チェックではsnapshot全体を比較し、エポック数も照合する。
+    common = _shared_network_parameters(common)
     common.pop("learning_rule_models", None)
     common["models"].pop("LEARNING_RULE_MODEL", None)
     # repごと・学習則ごとに異なる値は、初期重みNPZ内の完全な設定が保持する。
@@ -142,13 +152,20 @@ def save_parameter_snapshots(cfg, *, rep=1):
         payload = encode(payload)
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
-            if not parameter_records_equal(read_record(path), payload):
+            saved = read_record(path)
+            comparable = _shared_network_parameters(saved) if kind == "network" else saved
+            if not parameter_records_equal(comparable, payload):
                 raise ValueError(f"Parameters differ from the saved experiment: {path}")
+            if kind == "network" and comparable != saved:
+                # 他の共通条件が一致した場合だけ、旧記録からエポック数を取り除く。
+                save_record(path, comparable)
             continue
         # 新規保存を競合させても既存記録は上書きせず、先に保存された内容を比較する。
         try:
             save_record(path, payload, overwrite=False)
         except FileExistsError:
-            if not parameter_records_equal(read_record(path), payload):
+            saved = read_record(path)
+            comparable = _shared_network_parameters(saved) if kind == "network" else saved
+            if not parameter_records_equal(comparable, payload):
                 raise ValueError(f"Parameters differ from the saved experiment: {path}")
     return files

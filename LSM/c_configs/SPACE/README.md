@@ -1,6 +1,6 @@
 # パラメータ候補（SPACE）
 
-通常の実行値は `../FIXED/` です。出力層ごとのSTDP時定数5〜250 msは`FIXED/cfg_network_stdp.py`で定義し、`cfg_learning_rule_models.py`はその候補を参照します。冒頭のseed数・epochは`--sweep`で直接読み込みます。それ以外の候補定義は、置いただけでは通常実行に反映されません。
+通常の実行値は `../FIXED/` です。出力層ごとのSTDP時定数5〜500 msは`FIXED/cfg_network_stdp.py`で定義し、`cfg_learning_rule_models.py`はその候補を参照します。冒頭のseed数は`--sweep`で直接読み込み、epoch数は`experiment_sets.py`の`NUM_TRAINING_EPOCH`を共用します。それ以外の候補定義は、置いただけでは通常実行に反映されません。
 
 |ファイル|内容|
 |---|---|

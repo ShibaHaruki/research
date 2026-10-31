@@ -5,7 +5,6 @@ from copy import deepcopy
 from d_tools.progress import progress_items
 from pathlib import Path
 import numpy as np
-import pandas as pd
 from a_experiment.paths import (
     training_directory,
     test_directory,
@@ -28,7 +27,7 @@ from d_tools.parameter_recording import (
     read_training_configuration,
     save_training_configuration,
 )
-from d_tools.weight_export import save_weights, weight_summary
+from d_tools.weight_export import save_weights, weight_summary, save_training_weight_histograms
 from d_tools.training_recording import TrainingRecorder
 
 
@@ -68,6 +67,7 @@ def run_training(rep: int, cfg: dict) -> str:
     train_ids, test_ids = sample_split(cfg, rep)
     objects = build_runtime(cfg, learning=True)
     save_weights(training_weight_directory(folder, "initial"), objects)
+    save_training_weight_histograms(training_weight_directory(folder, "initial"))
     save_training_configuration(folder, cfg)
     initial = [np.asarray(s.w[:]).copy() for s in objects["S_out"]]
     schedule_rng = np.random.default_rng(
@@ -102,7 +102,7 @@ def run_training(rep: int, cfg: dict) -> str:
                 {"epoch": epoch, "material": material, "trial_id": sid, **weight_summary(objects)}
             )
     save_weights(final, objects)
-    pd.DataFrame(history).to_csv(folder / f"training_history_rep{rep}.csv", index=False)
+    save_training_weight_histograms(training_weight_directory(folder, "initial"), final)
     delta = (
         sum(
             float(np.sum((np.asarray(s.w[:]) - before) ** 2))
@@ -111,7 +111,7 @@ def run_training(rep: int, cfg: dict) -> str:
         ** 0.5
     )
     save_record(
-        folder / f"training_summary_rep{rep}.npz",
+        training_weight_directory(folder, "progression") / f"training_summary_rep{rep}.npz",
         {
             "rep": rep,
             "learning_rule": cfg["models"].get("LEARNING_RULE_MODEL", "off"),
@@ -351,6 +351,9 @@ def run_shared_training(rep: int, configurations: list[dict], shared_dir: Path) 
             view,
             name_overrides=names,
         )
+        save_training_weight_histograms(
+            training_weight_directory(training_directory(candidate), "initial")
+        )
         save_training_configuration(training_directory(candidate), candidate)
     histories = [[] for _ in configurations]
     schedule_rng = np.random.default_rng(
@@ -393,13 +396,16 @@ def run_shared_training(rep: int, configurations: list[dict], shared_dir: Path) 
     for candidate, history, before, (view, names) in zip(configurations, histories, initial, views):
         folder = training_directory(candidate)
         save_weights(training_weight_directory(folder, "final"), view, name_overrides=names)
-        pd.DataFrame(history).to_csv(folder / f"training_history_rep{rep}.csv", index=False)
+        save_training_weight_histograms(
+            training_weight_directory(folder, "initial"),
+            training_weight_directory(folder, "final"),
+        )
         delta = (
             sum(float(np.sum((np.asarray(s.w[:]) - w) ** 2)) for s, w in zip(view["S_out"], before))
             ** 0.5
         )
         save_record(
-            folder / f"training_summary_rep{rep}.npz",
+            training_weight_directory(folder, "progression") / f"training_summary_rep{rep}.npz",
             {
                 "rep": rep,
                 "learning_rule": candidate["models"]["LEARNING_RULE_MODEL"],

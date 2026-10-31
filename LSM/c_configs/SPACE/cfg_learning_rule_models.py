@@ -1,6 +1,6 @@
 """共有Liquidのsweep設定と、学習則ごとの一般的なパラメータ候補。"""
 
-# --sweepで直接使用する設定。tau_plus=tau_minusで50候補を比較する。
+# --sweepで直接使用する設定。tau_plus=tau_minusでFIXEDに定義した候補を比較する。
 from c_configs.FIXED.cfg_network_stdp import STDP_TAU_CANDIDATES_MS
 
 TAU_CANDIDATES_MS = list(STDP_TAU_CANDIDATES_MS)

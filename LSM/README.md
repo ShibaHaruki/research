@@ -19,7 +19,7 @@
 ## 現在の既定条件
 
 - Liquidは100個（E80・I20）。入力は3センサー×RI/SIの6経路。
-- Readoutは1群80個。STDPの時定数5〜250 msを5 ms刻みで比較する50群を定義しています。
+- Readoutは1群80個。STDPの時定数5〜500 msを5 ms刻みで比較する100群を定義しています。
 - Liquid E→Readoutの結合確率は0.11、gainは0.2963。I→Readoutの結合は作りません。
 - 入力・Liquid共通条件は`c_configs/FIXED/cfg_network.py`、STDP用は`c_configs/FIXED/cfg_network_stdp.py`、off用は`c_configs/FIXED/cfg_network_off.py`です。`--rule off`では出力80個・1群の固定重み構成を選びます。
 - 共通の時間刻みは0.1 ms。共通設定`dt_s`は秒単位（0.0001）です。旧設定の`dt_ms`は読み込み時に移行します。
@@ -53,7 +53,7 @@ python f_run/run_liquid.py --population all --out-dir g_tactile_results/liquid_r
 # 全324試行の記録だけを行う場合
 python f_run/run_liquid.py --samples 324 --record-only --out-dir g_tactile_results/liquid_recording_324
 
-# 50時定数×15seedの実行計画を表示するだけ
+# 100時定数×15seedの実行計画を表示するだけ
 python f_run/run_train_test_eval.py --sweep --plan
 
 # 保存済みのテスト記録を分類する
@@ -146,3 +146,19 @@ g_tactile_results/readout_run/
 ノートは保存済み校正結果を使います。通常のReadoutテスト記録の分類は`run_test_eval.py`で実行します。入力データと既存の実験結果は保持します。
 
 状態初期化の既定値は`COMMON_SETS["base"]`の`LIQUID_STATE_POLICY`・`READOUT_STATE_POLICY`です。過去の保存済み設定は変更しません。異なる状態条件の結果を同じ保存先へ混在させず、既存結果がある場合は別の保存先を指定してください。offは状態条件によらず`off/rep番号/test/`へ保存します。
+
+学習・テストのdebug共通出力では、結合群別の重み分布PDFを`debug/network/`へまとめます。同じ場所に`liquid_layer1_positions_3d.pdf`等のLiquid層ごとの実座標図を保存し、興奮性を青三角・抑制性を赤丸で区別します。各素材のラスター・膜電位・入力電流図は従来の`debug/liquid/素材名/`・`debug/readout/素材名/`です。
+
+学習前`training/weight/intial/`と学習後`training/weight/final/`には、`readout_weight_histograms.pdf`（Liquid→Readoutの結合群別）を保存します。入力→Liquid・Liquid内部のヒストグラムはここには保存しません。保存された実結合の重みだけを使用し、学習終了時には前後のビン境界・横軸・縦軸を共通にして比較できるようにします。sweepでも時定数・repごとに独立して出力します。
+
+サイクルごとの重み行列は`Progression_of_weights/cycles/`へまとめ、`w_liq1_out1_cycle_0000.npy`のようにサイクル番号をファイル名へ付けます。0000は学習前、0001以降は8素材を1回ずつ提示した後の保存時点です。
+
+学習サマリー`training_summary_rep番号.npz`は`training/weight/Progression_of_weights/`へ保存します。sweepの再開判定・結果集計も同じ場所から読み込みます。
+
+代表学習試行の重み変化は`debug/readout/素材名/weight_changes.pdf`だけを保存し、`Progression_of_weights`内には素材別フォルダや試行内トレースの数値ファイルを作りません。
+
+`convergence.pdf`は下側の横軸に累積学習試行数、上側にエポック番号を表示し、エポックの区切りを破線と背景色で示します。区切りは実際の記録のepoch値から決めます。
+
+共通の`network_parameters.json`ではエポック数を比較せず、時定数が異なる条件を同じSTDP結果ルートへ追加できます。各条件のエポック数は初期重みNPZ内の完全な設定と`training_summary_rep番号.npz`に保存します。同じ時定数・repの再開時はエポック数も含めて設定を比較します。
+
+`training/debug/network/`のLiquid→Readoutの重み分布は、学習開始前にコピーした初期重みを使い、タイトルは結合名だけを表示します。試行内の重み変化PDFは実際の学習中の記録、`weight/final/`と`test/debug/network/`は学習後の重みを使います。
