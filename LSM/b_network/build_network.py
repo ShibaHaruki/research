@@ -661,6 +661,12 @@ def make_liquid_network(
     net.add(*G_out, *S_out, *output_monitors["objects"])
     return {
         "net": net,
+        # 初期膜電位専用の乱数情報を渡し、結合生成の乱数列を消費しない。
+        "voltage_initialization": {
+            "policy": (common_cfg or {}).get("MEMBRANE_INITIALIZATION", "reset"),
+            "base_seed": int(net_cfg["BASE_SEED"]),
+            "output_seeds": list(net_cfg.get("OUTPUT_SEEDS", [output_seed] * len(G_out))),
+        },
         "G_in": G_in,
         "input_rows": list(net_cfg.get("INPUT_ROWS", [])),
         "G_liq": G_liq,

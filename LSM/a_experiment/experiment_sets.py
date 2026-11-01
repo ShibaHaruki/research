@@ -144,6 +144,7 @@ COMMON_SETS = {
         "SLICE_END": 8000,
         "NUM_SAMPLE": 324,  # 各素材の総サンプル数
         "LIQUID_STATE_POLICY": "reset_each_trial",  # 試行ごとに膜電位・シナプス状態を初期化する。
+        "MEMBRANE_INITIALIZATION": "uniform_reset_to_threshold",  # 各試行の膜電位をリセット電位以上・閾値未満の一様乱数にする。
         "READOUT_STATE_POLICY": "reset_each_trial",  # 学習済み重みを保持し、膜電位・学習トレースなどを初期化する。
         "LIQUID_DEBUG_ENABLE": True,  # Liquid単独実行で各素材の最初の試行をdebug記録する。
         "DEBUG_EACH_MATERIAL": True,  # 各素材1試行を確認し、学習時は結合重みの変化も記録する。
@@ -166,7 +167,7 @@ TRAINING_SETS = {
             "wood_board",
         ],
         "NUM_TRAINING_EPOCH": [10],  # 学習の繰り返し回数。
-        "NUM_TRAINING_SAMPLE": [100],
+        "NUM_TRAINING_SAMPLE": [100],  # 各素材の可塑性学習用試行数。テスト用200試行とは重複させない。
         "WEIGHT_TRACE_SYNAPSES": 10,  # 学習中の重み変化を詳しく記録する結合数。
     },
 }
@@ -184,7 +185,7 @@ TEST_SETS = {
             "Japanese_paper",
             "wood_board",
         ],
-        "NUM_TEST_SAMPLE": [100],
+        "NUM_TEST_SAMPLE": [200],  # 全学習則・offに共通する各素材のテスト用試行数。
         "BIN_STEPS": [250],
     },
 }
@@ -211,6 +212,6 @@ LIQUID_SETS = {
             "Japanese_paper",
             "wood_board",
         ],
-        "NUM_LIQUID_SAMPLE": [100],
+        "NUM_LIQUID_SAMPLE": [200],  # Liquid単独でも、出力層ありの実験と同じテスト試行数を使う。
     },
 }

@@ -50,20 +50,30 @@ def load_sample_order(seed, n_samples=324, *, directory=None):
 
 
 def load_sample_split(seed, n_train, n_test, *, rep=1, n_samples=324, directory=None):
-    """共通順序からrep番号付きの分割ファイルを保存し、学習・テスト番号を読む。"""
+    """共通順序から学習・テスト番号を読む。試行数の異なる分割は別々に保持する。"""
     if isinstance(rep, bool) or int(rep) != rep or rep < 1:
         raise ValueError("rep must be a positive integer")
     if min(n_train, n_test) < 1 or n_train + n_test > n_samples:
         raise ValueError("Require positive train/test sizes with train + test <= total samples")
     folder = SAMPLE_SEQUENCE_ROOT if directory is None else Path(directory)
     order = load_sample_order(seed, n_samples, directory=folder)
-    path = folder / f"sample_seq_rep{int(rep)}.npz"
     expected = {
         "sequence": order,
         "train_ids": order[:n_train],
         "test_ids": order[n_train : n_train + n_test],
         "unused_ids": order[n_train + n_test :],
     }
+    # 以前の直下ファイルは、同じ条件の場合だけ再利用する。過去の分割は書き換えない。
+    legacy_path = folder / f"sample_seq_rep{int(rep)}.npz"
+    if legacy_path.exists():
+        with np.load(legacy_path, allow_pickle=False) as saved:
+            if "sequence" not in saved or not np.array_equal(saved["sequence"], order):
+                raise ValueError(f"Saved split uses a different sample order: {legacy_path}")
+            if all(name in saved and np.array_equal(saved[name], values)
+                   for name, values in expected.items()):
+                return saved["train_ids"].copy(), saved["test_ids"].copy()
+    # 学習100・テスト200など、同じ試行数の条件は全学習則でこの分割を共有する。
+    path = folder / f"train{n_train}_test{n_test}" / f"sample_seq_rep{int(rep)}.npz"
     if not path.exists():
         _save_once(path, lambda stream: np.savez_compressed(stream, **expected))
     with np.load(path, allow_pickle=False) as saved:

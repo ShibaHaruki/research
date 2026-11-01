@@ -14,7 +14,7 @@ from f_run.repetitions import run_repetitions
 
 
 def main():
-    """既定ではoffと同じ100試行で、Liquid Eだけの分類まで行う。"""
+    """既定ではoffと同じ各素材200試行で、Liquid Eだけの分類まで行う。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rep", type=int, default=None)
     parser.add_argument("--rep-end", type=int, default=None)

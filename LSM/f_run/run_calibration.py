@@ -89,6 +89,7 @@ SETTINGS = {
     "IE_refinements": 2,
     "debug_trial_id": 203,
     "state_policy": "reset_each_trial",
+    "membrane_initialization": "uniform_reset_to_threshold",
     "output_probability": 0.11,
     "output_gain_step": 0.0001,
     "output_initial_gain": 0.8,
@@ -153,8 +154,10 @@ def config(gains, *, include_output=False):
     """Apply this experiment's explicit conditions to an independent config copy."""
     from f_run.common import build_cfg
 
-    cfg = deepcopy(build_cfg())
+    # 校正では時定数探索用の複数出力群を使わず、学習なしの1群構成を使う。
+    cfg = deepcopy(build_cfg(network_preset="off"))
     common = cfg["common"]
+    common["MEMBRANE_INITIALIZATION"] = SETTINGS["membrane_initialization"]
     if (
         common["NUM_SENSOR"] != 3
         or not np.isclose(common["dt_s"], 0.0001)
@@ -170,10 +173,8 @@ def config(gains, *, include_output=False):
     net["output_enabled"] = bool(include_output)
     if include_output:
         cfg["models"]["LEARNING_RULE_MODEL"] = "off"
-        sizes = net["N_out"]
-        sizes = [int(sizes)] if np.isscalar(sizes) else list(sizes)
-        if not sizes or any(int(n) != n or n < 1 for n in sizes):
-            raise ValueError("Positive output layer sizes required")
+        # 出力層のgainは80ニューロンの1群で校正する。
+        sizes = [80]
         net["N_out"] = sizes
         net["learning_rule_liq_to_out"] = ["off"] * len(sizes)
         net["p_liq_to_out_pairs"] = [
@@ -224,6 +225,7 @@ def provenance():
         "f_run/run_calibration.py",
         "f_run/common.py",
         "b_network/build_network.py",
+        "b_network/state_initialization.py",
         "b_network/monitor.py",
         "d_tools/activity.py",
         "d_tools/plotting.py",
@@ -287,6 +289,26 @@ def weights(ref, gains):
     return wi, np.ascontiguousarray(wr)
 
 
+def _initial_trial_voltages(inputs, outputs=0):
+    """各試行に同じ一様乱数を再利用し、校正候補間・Brian2検証の初期条件を揃える。"""
+    from a_experiment.experiment_sets import COMMON_SETS
+    from b_network.state_initialization import trial_voltage_values
+
+    base_seed = int(COMMON_SETS["base"]["BASE_SEED"])
+    liquid = np.full((len(inputs), 100), SETTINGS["reset_mV"], dtype=float)
+    output = np.full((len(inputs), outputs), SETTINGS["reset_mV"], dtype=float)
+    if SETTINGS["membrane_initialization"] == "uniform_reset_to_threshold":
+        span = SETTINGS["threshold_mV"] - SETTINGS["reset_mV"]
+        for index, trial in enumerate(inputs):
+            liquid[index] += span * trial_voltage_values(
+                trial, 100, seed=base_seed, population=0
+            )
+            output[index] += span * trial_voltage_values(
+                trial, outputs, seed=base_seed + 1, population=1
+            )
+    return liquid, output
+
+
 def _simulate_states(inputs, wi, wr, wo=None, gain=0.0, *, trace_callback=None):
     """NumPyで複数試行をまとめて計算する。各試行は初期状態から開始。
 
@@ -316,9 +338,8 @@ def _simulate_states(inputs, wi, wr, wo=None, gain=0.0, *, trace_callback=None):
     liquid_bins = np.zeros((trials, 100, 20), np.int32)
     bins = np.zeros((trials, outputs, 20), np.int32)
     peaks = np.zeros((trials, outputs))
-    v = np.full((trials, 100), -65.0)
+    v, ov = _initial_trial_voltages(x, outputs)
     last = np.full((trials, 100), -100000, np.int32)
-    ov = np.full((trials, outputs), -65.0)
     olast = np.full((trials, outputs), -100000, np.int32)
     syn = np.zeros((trials, 100 + outputs))
     h = np.zeros_like(syn)
@@ -387,6 +408,9 @@ def input_gain(x, ref, out):
     ids = np.flatnonzero(np.any(ref["input_unit_weights"] != 0, axis=0))
     threshold = 0.0
     critical = None
+    # 初期電位とbiasの差は、最初の発火まで膜時定数に従って減衰する。
+    initial_v, _ = _initial_trial_voltages(x)
+    decay = (1 - SETTINGS["dt_s"] / (SETTINGS["tau_membrane_ms"] / 1000.0)) ** np.arange(1, x.shape[1] + 1)
     for i, trial in enumerate(x):
         response = lfilter(
             [0.0001 / 0.010],
@@ -394,10 +418,12 @@ def input_gain(x, ref, out):
             (trial @ ref["input_unit_weights"][:, ids]).T,
             axis=1,
         )
-        peaks = response.max(1)
-        if np.any(peaks <= 0):
+        if np.any(response.max(1) <= 0):
             raise ValueError("Some connected neurons have no finite positive first-spike threshold")
-        required = 25.0 / peaks
+        margin = (SETTINGS["threshold_mV"] - SETTINGS["bias_mV"]
+                  - (initial_v[i, ids, None] - SETTINGS["bias_mV"]) * decay)
+        required = np.min(np.divide(margin, response, out=np.full_like(response, np.inf),
+                                    where=response > 0), axis=1)
         j = int(np.argmax(required))
         if required[j] > threshold:
             threshold = float(required[j])
@@ -505,7 +531,25 @@ def recurrent_gains(x, ref, gains, out):
     return gains
 
 
-def verify_brian(x, ref, gains, out, *, debug_title=None, expected_counts=None):
+def _save_calibration_debug(recorded, objects, root, *, material, trial_id, save_network):
+    """offと同じdebug/liquid・readout・network構成へPDFだけを保存する。"""
+    from d_tools.debug import save_network_debug
+    from d_tools.weight_export import save_debug_weight_distributions
+
+    debug_dir = Path(root) / "debug"
+    save_network_debug(
+        recorded, objects, debug_dir, material=material, trial_id=trial_id,
+        population_first=True,
+    )
+    # 共通の結合重み分布とE/Iの3次元配置は、素材ごとに重複保存しない。
+    if save_network:
+        save_debug_weight_distributions(debug_dir, objects)
+
+
+def verify_brian(
+    x, ref, gains, out, *, debug_title=None, expected_counts=None, debug_root=None,
+    material=None, save_network=False,
+):
     """Independent exact-count check of LIF/synaptic equations and topology."""
     from brian2 import start_scope, defaultclock, ms, seed
     from f_run.common import build_network_cfg, configure_brian_runtime
@@ -528,7 +572,7 @@ def verify_brian(x, ref, gains, out, *, debug_title=None, expected_counts=None):
     wi, wr = weights(ref, gains)
     assert np.allclose(np.load(out / "weights/w_in1_liq1.npy"), wi, atol=1e-12, rtol=1e-12)
     assert np.allclose(np.load(out / "weights/w_liq1_intra.npy"), wr, atol=1e-12, rtol=1e-12)
-    from d_tools.debug import execute_trial, save_debug_layer
+    from d_tools.debug import execute_trial
 
     recorded = execute_trial(
         objects,
@@ -546,12 +590,11 @@ def verify_brian(x, ref, gains, out, *, debug_title=None, expected_counts=None):
     if expected_counts is not None and not np.array_equal(actual, expected_counts):
         raise ValueError("Saved states differ from the representative debug trial")
     if debug_title is not None:
-        save_debug_layer(
-            data,
-            out,
-            title=debug_title,
-            n_excitatory=SETTINGS["excitatory"],
-            trial_id=SETTINGS["debug_trial_id"],
+        if debug_root is None or material is None:
+            raise ValueError("Material debug requires debug_root and material")
+        _save_calibration_debug(
+            recorded, objects, debug_root, material=material,
+            trial_id=SETTINGS["debug_trial_id"], save_network=save_network,
         )
     result = {"exact_25ms_counts_match": True, "gains": gains, "n_trials_checked": 1}
     save(out / "verification.npz", result)
@@ -663,10 +706,10 @@ def _save_output_calibration_states(folder, counts, liquid, sizes):
 
 
 def _verify_output_calibration_trial(
-    material, inputs, selected_gains, counts, liquid, unit, gain, folder, out, *, save_weights
+    material, inputs, selected_gains, counts, liquid, unit, gain, out, *, save_weights
 ):
     """代表試行をBrian2で再計算し、発火数・重み・単位gainの一致を確認する。"""
-    from d_tools.debug import execute_trial, save_network_debug
+    from d_tools.debug import execute_trial
     from d_tools.weight_export import save_liquid_weight_matrices
 
     sid = SETTINGS["debug_trial_id"]
@@ -681,8 +724,9 @@ def _verify_output_calibration_trial(
     assert all(np.array_equal(s.w[:], w) for s, w in zip(network["S_all"], initial))
     actual_w, _ = output_unit_weights(network)
     assert np.allclose(actual_w, unit * gain, rtol=1e-12, atol=1e-12)
-    save_network_debug(
-        recorded, network, folder / f"debug_sid{sid}", material=material, trial_id=sid
+    _save_calibration_debug(
+        recorded, network, out, material=material, trial_id=sid,
+        save_network=save_weights,
     )
     if save_weights:
         save_liquid_weight_matrices(out / "weights", network)
@@ -852,7 +896,6 @@ def calibrate_output(ref, gains, out, *, input_dir):
             liquid,
             unit,
             gain,
-            folder,
             out,
             save_weights=material == materials[0],
         )
@@ -930,9 +973,12 @@ def record_material_states(ref, gains, out):
             trial[None],
             ref,
             gains,
-            folder / f"debug_sid{sid}",
+            out / "verification" / material,
             debug_title=f"{material} | Trial {sid} | 100 liquid neurons",
             expected_counts=bins[sid - 1],
+            debug_root=out,
+            material=material,
+            save_network=material == SETTINGS["materials"][0],
         )
         records.append(
             {

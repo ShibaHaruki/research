@@ -13,6 +13,6 @@ CFG_NETWORK.update(
         "OUTPUT_LEARNING_PARAMETERS": [{}],
         "SHARE_OUTPUT_INITIALIZATION": True,
         "p_liq_to_out_pairs": [{"EE": 0.11, "EI": 0.0, "IE": 0.0, "II": 0.0}],
-        "gain_liq_to_out_pairs": [{"EE": 0.2706, "EI": 0.0, "IE": 0.0, "II": 0.0}],
+        "gain_liq_to_out_pairs": [{"EE": 0.2735, "EI": 0.0, "IE": 0.0, "II": 0.0}],
     }
 )

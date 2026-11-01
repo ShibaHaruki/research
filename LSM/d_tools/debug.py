@@ -110,8 +110,9 @@ def execute_trial(
     record_output=True,
     voltage=False,
 ):
-    """1試行を実行し、liquid/outputの層別記録を返す。状態初期化は呼出し元で行う。
+    """1試行を実行し、liquid/outputの層別記録を返す。
 
+    シナプス等のrestoreは呼出し元、時計0での膜電位乱数化はここで行う。
     voltage=Trueなら選択ニューロンの膜電位も返す。モニタの有効状態は終了時に戻す。
     """
     current = np.asarray(current, dtype=float)
@@ -135,6 +136,11 @@ def execute_trial(
     if not np.isclose(float(objects["G_in"].clock.dt / ms), dt_ms):
         raise ValueError("Input time step differs from network clock")
     start = objects["net"].t
+    # restore直後は時計が0になる。carry方式の途中では膜電位を変更しない。
+    if float(start / ms) == 0.0:
+        from b_network.state_initialization import initialize_trial_voltages
+
+        initialize_trial_voltages(objects, current[:round(duration_ms / dt_ms)])
     selections = []
     for population, enabled, group_key, spike_key, voltage_key, ids_key in [
         ("liquid", record_liquid, "G_liq", "M_liq_debug", "V_liq", "V_liq_indices"),

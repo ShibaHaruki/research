@@ -44,7 +44,7 @@
 # 校正計画を表示するだけ（探索は開始しない）
 python f_run/run_calibration.py plan
 
-# offと同じ100試行でLiquidだけを記録・分類する（既定はE80個を分類）
+# offと同じ各素材200試行でLiquidだけを記録・分類する（既定はE80個を分類）
 python f_run/run_liquid.py --rep 1 --workers 1
 
 # E/Iを合わせた全100ニューロンで分類する場合（別の保存先で比較）
@@ -70,6 +70,8 @@ python f_run/run_calibration.py correlation --self-test
 `--sweep`では、各seed内でLiquidを共有し、時定数ごとの80ニューロンを同時に計算します。seed間は別プロセスです。`--sweep`なしでは、FIXEDに定義した出力群全体を1つの実験として保存します。学習は8素材を1回ずつ含むランダム順の組で進め、1組ごとに全出力結合を保存します。
 
 Liquid単独の実行本体は`f_run/liquid.py`です。既定ではoffと同じ保存済みのテスト試行ID・素材順を使用し、入力と再帰結合・Liquidのseedも共通です。全100ニューロンを記録し、分類対象だけをE80個（`--population E`）または全100個（`--population all`）に選びます。Liquidのseedは固定なので、rep番号だけを増やしてもLiquidの結合や重みは変わりません。`--resume`では完成済みの記録を再利用して分類します。未完了の記録はテストの最初から再計算します。
+
+各素材324試行のうち、可塑性学習用100試行とテスト用200試行を重複なく選び、残り24試行は使いません。テスト用200試行の中で分類器の層別10-fold CVを行うため、各foldの分類器学習は180試行、評価は20試行です。off・各学習則・Liquid単独で同じテスト試行を使います。分割は`g_tactile_results/sample_seq/train100_test200/sample_seq_repN.npz`に保存し、既存の100試行テスト用分割は保持します。試行数を変更した新実験は、既存結果と設定が一致しないため、そのまま`--resume`できません。
 
 ```text
 g_tactile_results/liquid_run/
@@ -141,7 +143,10 @@ g_tactile_results/readout_run/
 ## 解析ノート
 
 - `h_analysis/calibration_liquid.ipynb`: LiquidのPCA・分類・応答パターン・ニューロン削減・時間幅別評価。
-- `h_analysis/calibration_output.ipynb`: 校正済みLiquid EとReadoutの発火率・PCA・分類・ニューロン削減の比較。
+- `h_analysis/calibration_readout.ipynb`: 校正済みLiquid EとReadoutの発火率・PCA・分類の比較。
+- `h_analysis/liquid.ipynb`: Liquid単独結果のビン幅比較・混同行列・発火率・時間区間別評価・PCA・ニューロン削減。
+- `h_analysis/off.ipynb`: offの出力層のビン幅比較・混同行列・発火率。
+- `h_analysis/STDP.ipynb`: 255 msを除く最良のSTDP時定数を選び、出力層の同じ解析を表示。
 
 ノートは保存済み校正結果を使います。通常のReadoutテスト記録の分類は`run_test_eval.py`で実行します。入力データと既存の実験結果は保持します。
 
