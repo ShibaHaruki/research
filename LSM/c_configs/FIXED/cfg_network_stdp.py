@@ -20,7 +20,7 @@ CFG_NETWORK.update(
             {"EE": 0.11, "EI": 0.0, "IE": 0.0, "II": 0.0} for _ in STDP_TAU_CANDIDATES_MS
         ],
         "gain_liq_to_out_pairs": [
-            {"EE": 0.2706, "EI": 0.0, "IE": 0.0, "II": 0.0} for _ in STDP_TAU_CANDIDATES_MS
+            {"EE": 0.2735, "EI": 0.0, "IE": 0.0, "II": 0.0} for _ in STDP_TAU_CANDIDATES_MS
         ],
     }
 )

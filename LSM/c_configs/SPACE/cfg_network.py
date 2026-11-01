@@ -32,7 +32,7 @@ SPACE_NETWORK_TUPLEPATH.update(
         ("p_liq_to_out_pairs", 0, "EI"): [0.0],
         ("p_liq_to_out_pairs", 0, "IE"): [0.0],
         ("p_liq_to_out_pairs", 0, "II"): [0.0],
-        ("gain_liq_to_out_pairs", 0, "EE"): [0.2706, 0.5, 0.6, 1.0, 2.0],
+        ("gain_liq_to_out_pairs", 0, "EE"): [0.2735, 0.5, 0.6, 1.0, 2.0],
         ("gain_liq_to_out_pairs", 0, "EI"): [0.0],
         ("gain_liq_to_out_pairs", 0, "IE"): [0.0],
         ("gain_liq_to_out_pairs", 0, "II"): [0.0],
