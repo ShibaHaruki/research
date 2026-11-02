@@ -7,7 +7,7 @@ from numbers import Number
 from typing import Any
 
 import numpy as np
-from brian2 import Network, NeuronGroup, Synapses, TimedArray, ms
+from brian2 import Network, NeuronGroup, Synapses, TimedArray, ms, prefs
 
 from .models.connectivity_models import get_connection, layer_val
 from .models.model_utils import merge_namespace
@@ -625,6 +625,26 @@ def make_liq_to_out_synapses(G_liq, G_out, rng, cfg):
 
 # Liquid層のニューロン群とシナプス群を組み立て、モニターを登録する関数
 def make_liquid_network(
+    net_cfg: dict,
+    N_in: int,
+    rng: np.random.Generator,
+    run_cfg: dict,
+    *,
+    common_cfg: dict | None = None,
+):
+    """初期化はNumPyに固定し、時間発展に使う実行方式だけを切り替える。
+
+    Brian2の乱数を使う結合生成を実行方式から独立させ、既存の結合・重みを維持する。
+    """
+    target = prefs.codegen.target
+    try:
+        prefs.codegen.target = "numpy"
+        return _assemble_liquid_network(net_cfg, N_in, rng, run_cfg, common_cfg=common_cfg)
+    finally:
+        prefs.codegen.target = target
+
+
+def _assemble_liquid_network(
     net_cfg: dict,
     N_in: int,
     rng: np.random.Generator,

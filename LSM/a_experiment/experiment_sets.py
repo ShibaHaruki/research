@@ -16,7 +16,8 @@ RUNTIME_CACHE_SETTINGS = {
 # 描画とBrian2の実行方式・ログの共通設定。
 RUNTIME_BACKEND_SETTINGS = {
     "MATPLOTLIB_BACKEND": "Agg",
-    "BRIAN_CODEGEN_TARGET": "numpy",
+    # 結合生成・初期化はNumPyのまま、時間発展をコンパイルして実行する。
+    "BRIAN_CODEGEN_TARGET": "cython",
     "BRIAN_SUPPRESS_LOG_NAMES": ["resolution_conflict"],
 }
 
