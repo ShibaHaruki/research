@@ -162,7 +162,7 @@ def _save_shared_test_metadata(
             "trial_ids": ids.tolist(),
             "bin_width_ms": 1.0,
             "duration_ms": duration_ms,
-            "dtype": "uint16",
+            "dtype": "uint8",
             "value": "spike count per bin",
             "recording_files": metadata["recording_files"],
             "liquid_layers": [
@@ -193,8 +193,8 @@ def _record_shared_test_trial(objects, cfg, material, sid, context, sample, bin_
     run_trial(objects, cfg, material, int(sid), record=False)
     sample(objects["net"].t)  # runの終端ではNetworkOperationが呼ばれないので最終ビンを集計。
     for values in context["counts"]:
-        if np.any(values < 0) or np.any(values > np.iinfo(np.uint16).max):
-            raise OverflowError("Spike count cannot be represented as uint16")
+        if np.any(values < 0) or np.any(values > np.iinfo(np.uint8).max):
+            raise OverflowError("Spike count cannot be represented as uint8")
     return context["counts"]
 
 
@@ -238,10 +238,11 @@ def run_shared_test(rep: int, configurations: list[dict], shared_dir: Path, *, r
     common_liquid.parent.mkdir(parents=True, exist_ok=True)
     common_partial = common_liquid.with_suffix(".partial.npy")
     try:
+        # 集計はint32のまま行い、範囲確認後のディスク保存だけuint8にする。
         liquid_recording = np.lib.format.open_memmap(
             common_partial,
             mode="w+",
-            dtype=np.uint16,
+            dtype=np.uint8,
             shape=(len(materials), n_test, sum(len(g) for g in objects["G_liq"]), bins),
         )
         for candidate, group in zip(pending, objects["G_out"]):
@@ -255,7 +256,7 @@ def run_shared_test(rep: int, configurations: list[dict], shared_dir: Path, *, r
                 np.lib.format.open_memmap(
                     fine_partial,
                     mode="w+",
-                    dtype=np.uint16,
+                    dtype=np.uint8,
                     shape=(len(materials), n_test, len(group), bins),
                 )
             )

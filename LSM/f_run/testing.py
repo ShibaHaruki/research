@@ -114,10 +114,11 @@ def record_fixed_test(
             path = record_files[population]
             path.parent.mkdir(parents=True, exist_ok=True)
             partials[population] = path.with_suffix(".partial.npy")
+            # 保存だけをuint8にし、代入前に発火数が0～255の範囲内か確認する。
             recordings[population] = np.lib.format.open_memmap(
                 partials[population],
                 mode="w+",
-                dtype=np.uint16,
+                dtype=np.uint8,
                 shape=(
                     len(materials),
                     n_test,
@@ -143,8 +144,8 @@ def record_fixed_test(
                     record_bin_ms=record_bin_ms,
                 )
                 for population, values in recorded.items():
-                    if np.any(values < 0) or np.any(values > np.iinfo(np.uint16).max):
-                        raise OverflowError("Spike count cannot be represented as uint16")
+                    if np.any(values < 0) or np.any(values > np.iinfo(np.uint8).max):
+                        raise OverflowError("Spike count cannot be represented as uint8")
                     recordings[population][index, sample] = values
         for recording in recordings.values():
             recording.flush()
@@ -181,7 +182,7 @@ def record_fixed_test(
             "trial_ids": test_ids.tolist(),
             "bin_width_ms": record_bin_ms,
             "duration_ms": duration,
-            "dtype": "uint16",
+            "dtype": "uint8",
             "value": "spike count per bin",
             "liquid_layers": [
                 {"n_excitatory": len(g.exc), "n_inhibitory": len(g.inh)} for g in objects["G_liq"]

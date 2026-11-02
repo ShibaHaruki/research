@@ -195,8 +195,9 @@ def run_liquid_test_eval(
         fine_partial = fine_path.with_suffix(".partial.npy")
         fine = None
         try:
+            # 保存だけをuint8にし、代入前に発火数が0～255の範囲内か確認する。
             fine = np.lib.format.open_memmap(
-                fine_partial, mode="w+", dtype=np.uint16, shape=(*shape, round(duration_ms))
+                fine_partial, mode="w+", dtype=np.uint8, shape=(*shape, round(duration_ms))
             )
             for m, material in enumerate(materials):
                 for t, sid in progress_items(
@@ -218,8 +219,8 @@ def run_liquid_test_eval(
                         voltage=False,
                     )
                     counts = np.concatenate([layer["counts"] for layer in result["liquid"]])
-                    if np.any(counts < 0) or np.any(counts > np.iinfo(np.uint16).max):
-                        raise OverflowError("Liquid spike count does not fit uint16")
+                    if np.any(counts < 0) or np.any(counts > np.iinfo(np.uint8).max):
+                        raise OverflowError("Liquid spike count does not fit uint8")
                     fine[m, t] = counts
             fine.flush()
         finally:
@@ -254,7 +255,7 @@ def run_liquid_test_eval(
                 "materials": materials,
                 "trial_ids": trial_ids.tolist(),
                 "bin_width_ms": 1.0,
-                "dtype": "uint16",
+                "dtype": "uint8",
                 "value": "spike count per bin",
                 "output_layer": False,
                 "neuron_order": "Layers concatenated; E then I within each layer",
