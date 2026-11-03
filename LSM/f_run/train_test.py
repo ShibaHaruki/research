@@ -106,7 +106,8 @@ def _attach_shared_test_sampler(objects, duration_ms):
     # イベント時刻を蓄積せず、累積発火数から両層の1 ms記録を作る。
     for monitor in objects["M_out"]:
         monitor.active = False
-    monitors = [
+    packed_parent = objects.get("packed_output_parent")
+    monitors = [SpikeMonitor(packed_parent, record=False, name="M_test_count_packed")] if packed_parent is not None else [
         SpikeMonitor(group, record=False, name=f"M_test_count_{index}")
         for index, group in enumerate(objects["G_out"])
     ]
@@ -120,7 +121,12 @@ def _attach_shared_test_sampler(objects, duration_ms):
 
     def sample(t):
         relative = round(float(t / ms) - context["start_ms"])
-        current = [np.asarray(m.count[:]).copy() for m in monitors]
+        if packed_parent is not None:
+            # 実際の発火カウンタも1個にまとめ、保存時だけ候補ごとに分割する。
+            counts = np.asarray(monitors[0].count[:])
+            current = [counts[group.start:group.stop].copy() for group in objects["G_out"]]
+        else:
+            current = [np.asarray(m.count[:]).copy() for m in monitors]
         current.append(np.concatenate([np.asarray(m.count[:]) for m in liquid_monitors]))
         if relative > 0:
             for block, values, previous in zip(context["counts"], current, context["previous"]):

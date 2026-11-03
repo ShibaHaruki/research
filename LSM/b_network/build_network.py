@@ -521,8 +521,28 @@ def make_output_neuron_groups(cfg: dict, rng):
 
 
 def make_liq_to_out_synapses(G_liq, G_out, rng, cfg):
-    """E→出力に選択した学習則を適用する。I→出力の負の重みは固定する。"""
+    """出力群を個別に計算する従来方式。厳密比較にも使用する。"""
     synapses, metadata = [], []
+    syn_model = SYNAPSE_MODELS[cfg["synapse_model"]]["synapse"]
+    for plan in output_connection_plans(G_liq, G_out, rng, cfg):
+        learning = LEARNING_RULES[plan["learning_rule"]]
+        syn = _make_synapses(
+            plan["source"], plan["target"], syn_model, name=plan["name"], cfg=cfg,
+            learning=learning if learning.get("learnable", False) else None,
+            namespace=plan["namespace"],
+        )
+        syn.connect(i=plan["i"], j=plan["j"])
+        syn.w = plan["weights"]
+        syn.delay = 0 * ms
+        synapses.append(syn)
+        metadata.append({key: plan[key] for key in
+                         ("liquid_index", "output_index", "learning_rule", "pre_offset")})
+        metadata[-1]["synapses"] = syn
+    return synapses, metadata
+
+
+def output_connection_plans(G_liq, G_out, rng, cfg):
+    """従来と同じ乱数順・80個ごとの正規化で結合と重みを決める。"""
     probabilities = cfg["p_liq_to_out_pairs"]
     gains = cfg["gain_liq_to_out_pairs"]
     if len(probabilities) != len(G_out) or len(gains) != len(G_out):
@@ -592,38 +612,18 @@ def make_liq_to_out_synapses(G_liq, G_out, rng, cfg):
                 )
                 if not len(pre_ids):
                     continue
-                syn = _make_synapses(
-                    pre,
-                    post,
-                    syn_model,
-                    name=f"S_liq{liq_index+1}_to_out{out_index+1}_{pair}",
-                    cfg=cfg,
-                    learning=(
-                        learning if pair == "EE" and learning.get("learnable", False) else None
-                    ),
-                    namespace=learning_namespace if pair == "EE" else None,
-                )
-                syn.connect(i=pre_ids, j=post_ids)
-                setattr(
-                    syn,
-                    syn_model["w_attr"],
-                    init_liq_to_out(output_rng, len(syn), sign * gain, len(post)),
-                )
-                syn.delay = 0 * ms
-                synapses.append(syn)
-                metadata.append(
-                    {
-                        "synapses": syn,
-                        "liquid_index": liq_index,
-                        "output_index": out_index,
-                        "learning_rule": rule_name if pair == "EE" else "off",
-                        "pre_offset": 0 if pair == "EE" else len(layer.exc),
-                    }
-                )
-    return synapses, metadata
+                yield {
+                    "source": pre, "target": post,
+                    "i": pre_ids, "j": post_ids,
+                    "weights": init_liq_to_out(output_rng, len(pre_ids), sign * gain, len(post)),
+                    "name": f"S_liq{liq_index+1}_to_out{out_index+1}_{pair}",
+                    "liquid_index": liq_index, "output_index": out_index,
+                    "learning_rule": rule_name if pair == "EE" else "off",
+                    "namespace": learning_namespace if pair == "EE" else {},
+                    "pre_offset": 0 if pair == "EE" else len(layer.exc),
+                }
 
 
-# Liquid層のニューロン群とシナプス群を組み立て、モニターを登録する関数
 def make_liquid_network(
     net_cfg: dict,
     N_in: int,
@@ -666,11 +666,22 @@ def _assemble_liquid_network(
     output_seed = int(net_cfg.get("OUTPUT_SEED", int(net_cfg["BASE_SEED"]) + 1))
     output_rng = np.random.default_rng(output_seed)
     G_out, S_out, output_meta = [], [], []
+    output_parent, output_synapse_parents = None, []
     output_monitors = {"M_out": [], "V_out": [], "V_out_indices": [], "objects": []}
     if net_cfg.get("output_enabled", False):
-        G_out = make_output_neuron_groups(net_cfg, output_rng)
-        S_out, output_meta = make_liq_to_out_synapses(G_liq, G_out, output_rng, net_cfg)
-        output_monitors = make_output_monitors(G_out, output_rng, monitor_cfg)
+        if net_cfg.get("PACK_READOUT_GROUPS", False) and len(_layer_sizes(net_cfg, "N_out")) > 1:
+            from .packed_readout import (
+                make_packed_output_groups, make_packed_output_synapses, make_packed_output_monitors,
+            )
+            output_parent, G_out = make_packed_output_groups(net_cfg, output_rng)
+            S_out, output_meta, output_synapse_parents = make_packed_output_synapses(
+                G_liq, G_out, output_parent, output_rng, net_cfg,
+            )
+            output_monitors = make_packed_output_monitors(G_out, output_parent, output_rng, monitor_cfg)
+        else:
+            G_out = make_output_neuron_groups(net_cfg, output_rng)
+            S_out, output_meta = make_liq_to_out_synapses(G_liq, G_out, output_rng, net_cfg)
+            output_monitors = make_output_monitors(G_out, output_rng, monitor_cfg)
 
     net = Network()
     net.add(G_in)
@@ -678,7 +689,9 @@ def _assemble_liquid_network(
         net.add(layer.exc, layer.inh)
     net.add(*(S_in + S_intra))
     net.add(*monitors["objects"])
-    net.add(*G_out, *S_out, *output_monitors["objects"])
+    # 一括方式の区画・結合ビューは保存用。Networkへは実体だけを登録する。
+    net.add(*(([output_parent] + output_synapse_parents) if output_parent is not None else G_out + S_out))
+    net.add(*output_monitors["objects"])
     return {
         "net": net,
         # 初期膜電位専用の乱数情報を渡し、結合生成の乱数列を消費しない。
@@ -694,6 +707,7 @@ def _assemble_liquid_network(
         "S_intra": S_intra,
         "S_all": S_in + S_intra + S_out,
         "G_out": G_out,
+        "packed_output_parent": output_parent,
         "S_out": S_out,
         "output_connection_meta": output_meta,
         **{key: value for key, value in output_monitors.items() if key != "objects"},

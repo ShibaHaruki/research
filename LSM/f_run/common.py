@@ -130,6 +130,8 @@ def build_network_cfg(cfg: dict) -> dict:
             "USE_INPUT_FILTERS": filters,
             "INPUT_ROWS": input_rows(input_filter_map),
             "NUM_CHANNEL": len(channels),
+            # 保存する実験条件を変えず、計算時だけ出力群を一括処理できるようにする。
+            "PACK_READOUT_GROUPS": RUNTIME_BACKEND_SETTINGS.get("PACK_READOUT_GROUPS", False),
         }
     )
 

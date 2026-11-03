@@ -26,7 +26,7 @@ def _initial_arrays(objects):
     return values
 
 
-def validate_backend_equivalence(cfg, trials):
+def validate_backend_equivalence(cfg, trials, *, compare_packing=False):
     """同一設定・試行順で両方式を実行する。完全一致しなければAssertionError。
 
     初回のCythonコンパイルも含む時間を表示する。既存の学習結果は変更しない。
@@ -40,11 +40,18 @@ def validate_backend_equivalence(cfg, trials):
     if not trials:
         raise ValueError("At least one material/trial pair is required")
     previous_target = RUNTIME_BACKEND_SETTINGS["BRIAN_CODEGEN_TARGET"]
+    previous_packing = RUNTIME_BACKEND_SETTINGS.get("PACK_READOUT_GROUPS", False)
     previous_preference = prefs.codegen.target
     reference_initial, reference_trials = None, []
+    variants = (
+        [("separate", previous_target, False), ("packed", previous_target, True)]
+        if compare_packing else
+        [("numpy", "numpy", previous_packing), ("cython", "cython", previous_packing)]
+    )
     try:
-        for target in ("numpy", "cython"):
+        for variant_index, (label, target, packing) in enumerate(variants):
             RUNTIME_BACKEND_SETTINGS["BRIAN_CODEGEN_TARGET"] = target
+            RUNTIME_BACKEND_SETTINGS["PACK_READOUT_GROUPS"] = packing
             objects = build_runtime(deepcopy(cfg), learning=True)
             initial = _initial_arrays(objects)
             if reference_initial is None:
@@ -67,19 +74,20 @@ def validate_backend_equivalence(cfg, trials):
                             arrays[f"{population}/{layer}/{key}"] = data[key].copy()
                 for synapse_index, synapse in enumerate(objects["S_out"]):
                     arrays[f"weights/{synapse_index}"] = np.asarray(synapse.w[:]).copy()
-                if target == "numpy":
+                if variant_index == 0:
                     reference_trials.append(arrays)
                 else:
                     for key, values in arrays.items():
                         _assert_exact(reference_trials[index][key], values, f"{material}/{sid}/{key}")
                     # 指定だけでなく、実際の時間発展にCythonが使用されたことを確認する。
                     code_objects = [co for obj in objects["net"].sorted_objects for co in obj.code_objects]
-                    if not any(co.__class__.__name__ == "CythonCodeObject" for co in code_objects):
+                    if target == "cython" and not any(co.__class__.__name__ == "CythonCodeObject" for co in code_objects):
                         raise AssertionError("Cython code was not executed")
-                print(f"[{target}] {material} trial {sid}: {perf_counter() - started:.3f} s", flush=True)
+                print(f"[{label}] {material} trial {sid}: {perf_counter() - started:.3f} s", flush=True)
         print(f"PASS: exact spikes, recorded voltages and weights for {len(trials)} trials", flush=True)
     finally:
         RUNTIME_BACKEND_SETTINGS["BRIAN_CODEGEN_TARGET"] = previous_target
+        RUNTIME_BACKEND_SETTINGS["PACK_READOUT_GROUPS"] = previous_packing
         prefs.codegen.target = previous_preference
 
 
@@ -94,13 +102,23 @@ def main():
     parser.add_argument("--trials", nargs="+", type=int, default=[203])
     parser.add_argument("--passes", type=int, default=1)
     parser.add_argument("--seed", type=int, default=12345)
+    parser.add_argument("--packing", action="store_true", help="現在のbackendで従来方式と一括方式を厳密比較")
+    parser.add_argument("--all-taus", action="store_true", help="STDPの全100候補を比較")
+    parser.add_argument("--duration-ms", type=int, default=500, help="短い診断では25 msの倍数を指定")
     args = parser.parse_args()
     if args.passes < 1 or any(tau <= 0 or not np.isfinite(tau) for tau in args.taus):
         parser.error("passes and time constants must be positive")
     if any(sid < 1 or sid > 324 for sid in args.trials):
         parser.error("trial IDs must be from 1 to 324")
+    if not 25 <= args.duration_ms <= 500 or args.duration_ms % 25:
+        parser.error("duration-ms must be a multiple of 25 from 25 to 500")
+    if args.all_taus:
+        args.taus = list(range(5, 501, 5))
     cfg = build_cfg(network_preset="off")
     cfg["common"]["BASE_SEED"] = args.seed
+    cfg["common"]["SLICE_END"] = cfg["common"]["SLICE_START"] + round(
+        args.duration_ms / (float(cfg["common"]["dt_s"]) * 1000)
+    )
     count = len(args.taus) if args.rule == "STDP" else 1
     for key in ("N_out", "p_liq_to_out_pairs", "gain_liq_to_out_pairs"):
         cfg["network"][key] = [deepcopy(cfg["network"][key][0]) for _ in range(count)]
@@ -112,7 +130,7 @@ def main():
     )
     trials = [(material, sid) for _ in range(args.passes) for sid in args.trials
               for material in cfg["training"]["TRAINING_MAT"]]
-    validate_backend_equivalence(cfg, trials)
+    validate_backend_equivalence(cfg, trials, compare_packing=args.packing)
 
 
 if __name__ == "__main__":

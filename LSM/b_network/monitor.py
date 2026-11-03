@@ -41,10 +41,13 @@ def make_weight_trace_monitors(synapses, *, n_record=10, seed=1, prefix="W_trace
     for number, syn in enumerate(blocks):
         ids = chosen[(chosen >= offset) & (chosen < offset + len(syn))] - offset
         if len(ids):
+            # 一括方式でも選択は候補内の番号で行い、記録だけ実体の結合番号へ変換する。
+            source = getattr(syn, "parent", syn)
+            record_ids = ids + syn.start if source is not syn else ids
             monitor = StateMonitor(
-                syn,
+                source,
                 "w",
-                record=ids,
+                record=record_ids,
                 clock=syn.clock,
                 when="start",
                 order=-1,
