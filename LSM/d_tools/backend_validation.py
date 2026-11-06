@@ -98,14 +98,18 @@ def main():
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rule", choices=("off", "STDP", "T_STDP", "SRDP", "BCPNN"), default="STDP")
-    parser.add_argument("--taus", nargs="+", type=float, default=[5, 20, 230, 500])
+    parser.add_argument("--taus", nargs="+", type=float, default=[5, 20, 85, 230, 500])
     parser.add_argument("--trials", nargs="+", type=int, default=[203])
     parser.add_argument("--passes", type=int, default=1)
     parser.add_argument("--seed", type=int, default=12345)
     parser.add_argument("--packing", action="store_true", help="現在のbackendで従来方式と一括方式を厳密比較")
+    parser.add_argument("--backend", choices=("numpy", "cython"), help="一括方式の比較で使う実行方式")
     parser.add_argument("--all-taus", action="store_true", help="STDPの全100候補を比較")
     parser.add_argument("--duration-ms", type=int, default=500, help="短い診断では25 msの倍数を指定")
     args = parser.parse_args()
+    if args.backend:
+        from a_experiment.experiment_sets import RUNTIME_BACKEND_SETTINGS
+        RUNTIME_BACKEND_SETTINGS["BRIAN_CODEGEN_TARGET"] = args.backend
     if args.passes < 1 or any(tau <= 0 or not np.isfinite(tau) for tau in args.taus):
         parser.error("passes and time constants must be positive")
     if any(sid < 1 or sid > 324 for sid in args.trials):
@@ -119,14 +123,15 @@ def main():
     cfg["common"]["SLICE_END"] = cfg["common"]["SLICE_START"] + round(
         args.duration_ms / (float(cfg["common"]["dt_s"]) * 1000)
     )
-    count = len(args.taus) if args.rule == "STDP" else 1
+    # 一括比較ではSTDP以外も複数群を作り、実際に一括経路を通して検証する。
+    count = len(args.taus) if args.rule == "STDP" or args.packing else 1
     for key in ("N_out", "p_liq_to_out_pairs", "gain_liq_to_out_pairs"):
         cfg["network"][key] = [deepcopy(cfg["network"][key][0]) for _ in range(count)]
     cfg["network"]["learning_rule_liq_to_out"] = [args.rule] * count
     cfg["models"]["LEARNING_RULE_MODEL"] = args.rule
     cfg["network"]["OUTPUT_LEARNING_PARAMETERS"] = (
         [{"tau_plus": tau, "tau_minus": tau} for tau in args.taus]
-        if args.rule == "STDP" else [{}]
+        if args.rule == "STDP" else [{} for _ in range(count)]
     )
     trials = [(material, sid) for _ in range(args.passes) for sid in args.trials
               for material in cfg["training"]["TRAINING_MAT"]]

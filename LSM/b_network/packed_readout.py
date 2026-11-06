@@ -162,10 +162,18 @@ def make_packed_output_synapses(liquid, groups, parent, rng, cfg):
             equations = re.sub(r"\b" + re.escape(key) + r"\b", variable, equations)
             pre_code = re.sub(r"\b" + re.escape(key) + r"\b", variable, pre_code)
             post_code = re.sub(r"\b" + re.escape(key) + r"\b", variable, post_code)
+        # 従来のスカラー時定数ではBrian2が逆数を先に計算する。
+        # 結合ごとの定数でも同じ丸め順を保つため、逆数を初期化時に保持する。
+        inverse_names = {key: f"packed_inverse_{key}_value"
+                         for key in parameters if key.startswith("tau")}
+        for key, inverse in inverse_names.items():
+            equations = re.sub(r"/\s*" + re.escape(parameter_names[key]) + r"\b",
+                               "* " + inverse, equations)
         equations += "\n" + "\n".join(
             f"{parameter_names[key]} : {'second' if key.startswith('tau') else '1'} (constant)"
             for key in parameters
         )
+        equations += "\n" + "\n".join(f"{name} : Hz (constant)" for name in inverse_names.values())
         kwargs = dict(
             model=equations, method="euler", name=f"S_out_packed_{bucket_index}",
             namespace=syn_model.get("namespace", {}),
@@ -184,6 +192,8 @@ def make_packed_output_synapses(liquid, groups, parent, rng, cfg):
             end = offset + len(plan["i"])
             for key in parameters:
                 getattr(syn, parameter_names[key])[offset:end] = plan["namespace"][key]
+                if key in inverse_names:
+                    getattr(syn, inverse_names[key])[offset:end] = 1.0 / plan["namespace"][key]
             views[index] = PackedSynapseView(syn, plan, offset, end, plan["target"].start)
             metadata[index] = {key: plan[key] for key in
                                ("liquid_index", "output_index", "learning_rule", "pre_offset")}

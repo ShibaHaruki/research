@@ -101,7 +101,9 @@ Liquid単独・off・各学習則とも、25 ms等へ集約した別ファイル
 
 Brian2の実行方式は`a_experiment/experiment_sets.py`の`BRIAN_CODEGEN_TARGET`で指定します。結合生成・重み初期化は実行方式にかかわらず従来のNumPy方式で行い、時間発展だけを切り替えます。Cythonの初回実行はコンパイルに時間がかかります。CythonとC++コンパイラが必要です。
 
-別のOS・CPU・コンパイラや設定へ移した場合は、LSM直下で`python -m d_tools.backend_validation --trials 203 1 --passes 2`を実行すると、全8素材・STDP時定数5/20/230/500 msについて初期結合、スパイク時刻、記録した膜電位、各試行後の全出力結合の重みをNumPy版と許容誤差なしで比較できます。`--rule off`や`--seed 12346`で条件を変更できます。比較対象に結果の相違があれば停止し、実験結果ファイルは保存しません。この検証は指定条件での確認であり、未検証の環境や全実験条件におけるビット一致を保証するものではありません。
+`PACK_READOUT_GROUPS=True`では、複数候補の出力ニューロンを1グループ、同じ学習則のシナプスを1組にまとめます。各候補の結合・初期重み・初期膜電位・80個等の区切りを維持し、保存ファイルと分類は従来の候補単位で扱います。時定数の逆数は初期化時に計算し、従来方式と演算の丸め順を合わせます。単一出力群とLiquid単独は従来の構成を使います。従来方式との比較には`python -m d_tools.backend_validation --packing --trials 203 1 --passes 2`、全100候補の短い診断には`python -m d_tools.backend_validation --packing --backend numpy --all-taus --duration-ms 50 --trials 203 1`を使います。`PACK_READOUT_GROUPS=False`にすると従来方式に戻せます。
+
+別のOS・CPU・コンパイラや設定へ移した場合は、LSM直下で`python -m d_tools.backend_validation --trials 203 1 --passes 2`を実行すると、全8素材・STDP時定数5/20/85/230/500 msについて初期結合、スパイク時刻、記録した膜電位、各試行後の全出力結合の重みをNumPy版と許容誤差なしで比較できます。`--rule off`や`--seed 12346`で条件を変更できます。比較対象に結果の相違があれば停止し、実験結果ファイルは保存しません。この検証は指定条件での確認であり、未検証の環境や全実験条件におけるビット一致を保証するものではありません。
 
 ## コードの書式と単位
 

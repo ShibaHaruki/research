@@ -18,6 +18,8 @@ RUNTIME_BACKEND_SETTINGS = {
     "MATPLOTLIB_BACKEND": "Agg",
     # 結合生成・初期化はNumPyのまま、時間発展をコンパイルして実行する。
     "BRIAN_CODEGEN_TARGET": "cython",
+    # 複数出力群の計算を一括化する。保存・分類は従来どおり候補ごとに分ける。
+    "PACK_READOUT_GROUPS": True,
     "BRIAN_SUPPRESS_LOG_NAMES": ["resolution_conflict"],
 }
 
